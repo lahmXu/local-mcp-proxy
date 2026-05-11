@@ -1,0 +1,9 @@
+# Conda 环境（可与 start.sh 中 CONDA_ENV=mcp 对齐）
+name: mcp
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11,<3.14
+  - pip
+  - pip:
+      - -r requirements.txt

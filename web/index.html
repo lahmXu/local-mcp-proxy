@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP Proxy 配置</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --danger: #dc2626;
+      --ok: #16a34a;
+      --font: "Segoe UI", system-ui, sans-serif;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      padding: 0.85rem 1.5rem;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    h1 { font-size: 1.15rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+    .userline { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    main { padding: 1.25rem 1.5rem; max-width: 1200px; margin: 0 auto; }
+    /* stat cards */
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      box-shadow: var(--shadow-sm);
+    }
+    .stat-card .stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .stat-card .stat-value { font-size: 1.35rem; font-weight: 700; margin-top: 0.15rem; color: var(--text); }
+    .stat-card .stat-value.accent { color: var(--accent); }
+    .stat-card .stat-value.ok { color: var(--ok); }
+    /* buttons */
+    button, .btn {
+      font-family: inherit;
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0.45rem 0.9rem;
+      font-size: 0.9rem;
+      transition: all 0.15s ease;
+    }
+    button:hover, .btn:hover { box-shadow: var(--shadow-sm); border-color: #cbd5e1; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.primary:hover { background: #1d4ed8; border-color: #1d4ed8; box-shadow: 0 2px 8px rgba(37,99,235,0.25); }
+    button.ghost { background: transparent; color: var(--muted); border-color: transparent; }
+    button.ghost:hover { color: var(--text); background: #f1f5f9; }
+    button.danger { border-color: var(--danger); color: var(--danger); background: #fff; }
+    button.danger:hover { background: #fef2f2; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    /* table */
+    .table-wrap {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8fafc; }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+    }
+    .badge.on { background: #f0fdf4; border-color: #bbf7d0; color: var(--ok); }
+    .badge.off { background: #f8fafc; color: var(--muted); }
+    .toolbar { margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+    .msg {
+      margin: 0.75rem 0;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: none;
+      white-space: pre-wrap;
+      font-size: 0.85rem;
+    }
+    .msg.show { display: block; }
+    .msg.err { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+    .msg.ok { border-color: #bbf7d0; background: #f0fdf4; color: #166534; }
+    /* modal */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: min(720px, 100%);
+      max-height: 92vh;
+      overflow: auto;
+      padding: 1.25rem;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+    }
+    .modal h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0.65rem 0 0.25rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    .select-wrap {
+      position: relative;
+      width: 100%;
+    }
+    .select-wrap::after {
+      content: "";
+      position: absolute;
+      right: 0.7rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid var(--muted);
+      pointer-events: none;
+    }
+    select {
+      width: 100%;
+      padding: 0.5rem 1.8rem 0.5rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      appearance: none;
+      -webkit-appearance: none;
+      cursor: pointer;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    /* password toggle */
+    .pw-wrap { position: relative; }
+    .pw-wrap input { padding-right: 2.2rem; }
+    .pw-toggle {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.2rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+    }
+    .pw-toggle:hover { color: var(--text); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 600px) { .row { grid-template-columns: 1fr; } }
+    .section {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+    .tool-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      background: var(--panel);
+    }
+    .tool-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .tool-head span { font-weight: 600; font-size: 0.9rem; }
+    .param-row {
+      display: grid;
+      grid-template-columns: 1fr 100px 80px 1fr 36px;
+      gap: 0.35rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    @media (max-width: 700px) {
+      .param-row { grid-template-columns: 1fr 1fr; }
+    }
+    .modal-actions {
+      margin-top: 1.25rem;
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    code { font-size: 0.8rem; color: var(--muted); }
+    /* tabs */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.25rem;
+      box-shadow: inset 0 -2px 0 var(--border);
+    }
+    .tab-btn {
+      padding: 0.6rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      background: none;
+      border: none;
+      border-radius: 0;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    /* service cards */
+    .svc-summary {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .svc-summary strong { color: var(--accent); }
+    .svc-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+    .svc-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.65rem 0.75rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .svc-card-head:hover { background: #f8fafc; }
+    .svc-card-head .left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .svc-card-head .name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .svc-card-head .desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .svc-card-body {
+      display: none;
+      padding: 0 0.75rem 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .svc-card.open .svc-card-body { display: block; }
+    .svc-card-head .arrow {
+      transition: transform 0.2s;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .svc-card.open .svc-card-head .arrow { transform: rotate(90deg); }
+    .svc-detail-grid {
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 0.35rem 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .svc-detail-grid dt { color: var(--muted); font-size: 0.8rem; }
+    .svc-detail-grid dd { margin: 0; font-size: 0.85rem; word-break: break-all; }
+    .svc-params { margin-top: 0.5rem; }
+    .svc-params table { font-size: 0.8rem; }
+    .svc-params th { font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MCP Proxy 管理</h1>
+    <div class="userline">
+      <span id="loginUser"></span>
+      <button type="button" class="ghost" id="btnLogout">退出登录</button>
+    </div>
+  </header>
+  <main>
+    <div class="stats">
+      <div class="stat-card"><div class="stat-label">配置总数</div><div class="stat-value" id="sTotal">-</div></div>
+      <div class="stat-card"><div class="stat-label">已启用</div><div class="stat-value accent" id="sEnabled">-</div></div>
+      <div class="stat-card"><div class="stat-label">工具数</div><div class="stat-value" id="sTools">-</div></div>
+      <div class="stat-card"><div class="stat-label">已注册</div><div class="stat-value ok" id="sRegistered">-</div></div>
+    </div>
+
+    <nav class="tabs">
+      <button type="button" class="tab-btn active" data-tab="config">配置管理</button>
+      <button type="button" class="tab-btn" data-tab="services">MCP 服务</button>
+    </nav>
+
+    <!-- 配置管理 tab -->
+    <div class="tab-panel active" id="tab-config">
+      <div class="msg" id="flash"></div>
+      <div class="toolbar">
+        <button type="button" class="primary" id="btnNew">新建配置</button>
+        <button type="button" id="btnRefresh">刷新</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>协议</th>
+              <th>工具数</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MCP 服务 tab -->
+    <div class="tab-panel" id="tab-services">
+      <div class="toolbar">
+        <div class="svc-summary" id="svcSummary">加载中…</div>
+        <button type="button" id="btnRefreshSvc">刷新</button>
+      </div>
+      <div id="svcList"></div>
+    </div>
+  </main>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2 id="modalTitle">编辑配置</h2>
+      <div class="row">
+        <div>
+          <label>显示名称 name（将用作工具前缀）</label>
+          <input id="f_name" required />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>协议 protocol</label>
+          <div class="select-wrap"><select id="f_protocol">
+            <option value="http">http</option>
+            <option value="mysql">mysql</option>
+          </select></div>
+        </div>
+        <div>
+          <label>启用 enabled</label>
+          <div class="select-wrap"><select id="f_enabled">
+            <option value="true" selected>启用</option>
+            <option value="false">停用</option>
+          </select></div>
+        </div>
+      </div>
+
+      <div class="section" id="box_mysql">
+        <h3 style="margin:0 0 0.5rem;font-size:0.95rem;">MySQL protocol_config</h3>
+        <div class="row">
+          <div><label>host</label><input id="m_host" value="localhost" /></div>
+          <div><label>port</label><input id="m_port" type="number" value="3306" /></div>
+        </div>
+        <div class="row">
+          <div><label>user</label><input id="m_user" value="root" /></div>
+          <div><label>password</label><div class="pw-wrap"><input id="m_password" type="password" /><button type="button" class="pw-toggle" onclick="togglePw(this)">显示</button></div></div>
+        </div>
+        <div><label>database</label><input id="m_database" /></div>
+      </div>
+
+      <div class="section" id="box_http">
+        <h3 style="margin:0 0 0.5rem;font-size:0.95rem;">HTTP protocol_config</h3>
+        <div><label>base_url</label><input id="h_base_url" placeholder="https://api.example.com" /></div>
+        <div class="row">
+          <div><label>timeout（秒）</label><input id="h_timeout" type="number" value="30" /></div>
+          <div><label>auth_type</label>
+            <div class="select-wrap"><select id="h_auth_type">
+              <option value="none">none</option>
+              <option value="bearer">bearer</option>
+              <option value="basic">basic</option>
+            </select></div>
+          </div>
+        </div>
+        <div class="row">
+          <div><label>bearer token</label><input id="h_auth_token" /></div>
+          <div><label>basic 用户 / 密码</label><input id="h_auth_user" placeholder="username" /></div>
+        </div>
+        <div><label>basic 密码</label><div class="pw-wrap"><input id="h_auth_pass" type="password" /><button type="button" class="pw-toggle" onclick="togglePw(this)">显示</button></div></div>
+        <div><label>headers（JSON 对象，可选）</label><textarea id="h_headers" placeholder='{"Accept":"application/json"}'></textarea></div>
+      </div>
+
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;font-size:0.95rem;">工具列表 tools</h3>
+          <button type="button" class="primary" id="btnAddTool">添加工具</button>
+        </div>
+        <div id="toolsBox" style="margin-top: 10px"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="btnCancel">取消</button>
+        <button type="button" class="primary" id="btnSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    function togglePw(btn) {
+      const input = btn.parentElement.querySelector("input");
+      if (input.type === "password") { input.type = "text"; btn.textContent = "隐藏"; }
+      else { input.type = "password"; btn.textContent = "显示"; }
+    }
+    const flash = $("#flash");
+    let editingId = null;
+
+    function showFlash(text, isErr) {
+      flash.textContent = text;
+      flash.className = "msg show " + (isErr ? "err" : "ok");
+    }
+    function clearFlash() {
+      flash.className = "msg";
+    }
+
+    async function api(path, opts = {}) {
+      const r = await fetch(path, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...opts.headers },
+        ...opts,
+      });
+      if (r.status === 401) {
+        window.location.href = "/login";
+        throw new Error("未登录");
+      }
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || r.statusText);
+      return data;
+    }
+
+    async function loadStatus() {
+      const s = await api("/api/status");
+      $("#sTotal").textContent = s.total_configs;
+      $("#sEnabled").textContent = s.enabled_configs;
+      $("#sTools").textContent = s.total_tools;
+      $("#sRegistered").textContent = s.registered_tools?.length ?? 0;
+    }
+
+    (async function initUser() {
+      try {
+        const r = await fetch("/api/check-auth", { credentials: "include" });
+        const d = await r.json();
+        if (!d.logged_in) {
+          window.location.href = "/login";
+          return;
+        }
+        const el = $("#loginUser");
+        if (el) el.textContent = "当前用户：" + (d.username || "");
+      } catch (_) {
+        window.location.href = "/login";
+      }
+    })();
+
+    $("#btnLogout").onclick = async () => {
+      try {
+        await fetch("/api/logout", { method: "POST", credentials: "include" });
+      } catch (_) {}
+      window.location.href = "/login";
+    };
+
+    function emptyTool() {
+      return {
+        name: "",
+        description: "",
+        sql: "",
+        path: "",
+        method: "GET",
+        enabled: true,
+        params: [],
+      };
+    }
+
+    function syncProtocolBoxes() {
+      const p = $("#f_protocol").value;
+      $("#box_mysql").style.display = p === "mysql" ? "block" : "none";
+      $("#box_http").style.display = p === "http" ? "block" : "none";
+      // 同步工具卡片内的字段显示
+      document.querySelectorAll("#toolsBox .tool-card").forEach((card) => {
+        const sqlBlock = card.querySelector(".sql-block");
+        const httpBlock = card.querySelector(".http-block");
+        const paramsBlock = card.querySelector(".params-block");
+        if (sqlBlock) sqlBlock.style.display = p === "mysql" ? "block" : "none";
+        if (httpBlock) httpBlock.style.display = p === "http" ? "block" : "none";
+        // 参数配置对 MySQL 和 HTTP 都可见
+        if (paramsBlock) paramsBlock.style.display = "block";
+      });
+    }
+
+    $("#f_protocol").addEventListener("change", syncProtocolBoxes);
+
+    function renderToolCard(t, idx) {
+      const div = document.createElement("div");
+      div.className = "tool-card";
+      const ps = (t.params || []).map(
+        (p, i) => `
+        <div class="param-row" data-pi="${i}">
+          <input data-k="name" placeholder="参数名" value="${esc(p.name || "")}" />
+          <div class="select-wrap"><select data-k="type">
+            ${["string","integer","number","boolean"].map(
+              (x) => `<option value="${x}" ${p.type === x ? "selected" : ""}>${x}</option>`
+            ).join("")}
+          </select></div>
+          <div class="select-wrap"><select data-k="required">
+            <option value="true" ${p.required !== false ? "selected" : ""}>必填</option>
+            <option value="false" ${p.required === false ? "selected" : ""}>可选</option>
+          </select></div>
+          <input data-k="default" placeholder="默认值（可选）" value="${esc(p.default ?? "")}" />
+          <button type="button" class="danger rm-p" title="删参数">×</button>
+        </div>`
+      ).join("");
+      div.innerHTML = `
+        <div class="tool-head">
+          <span>工具 #${idx + 1}</span>
+          <button type="button" class="danger rm-tool">删除工具</button>
+        </div>
+        <div class="row">
+          <div><label>工具名 name</label><input data-t="name" value="${esc(t.name)}" /></div>
+          <div><label>启用</label><div class="select-wrap"><select data-t="en">
+            <option value="true" ${t.enabled !== false ? "selected" : ""}>是</option>
+            <option value="false" ${t.enabled === false ? "selected" : ""}>否</option>
+          </select></div></div>
+        </div>
+        <label>描述 description</label>
+        <input data-t="desc" value="${esc(t.description || "")}" />
+        <div class="sql-block">
+          <label>SQL（MySQL）</label>
+          <textarea data-t="sql" placeholder="SELECT * FROM users WHERE id = :id（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）">${esc(t.sql || "")}</textarea>
+          <div class="row" style="margin-top:0.5rem">
+            <div><label>返回格式</label>
+              <div class="select-wrap"><select data-t="format">
+                <option value="json" ${(t.format || "json") === "json" ? "selected" : ""}>JSON</option>
+                <option value="text" ${t.format === "text" ? "selected" : ""}>Text</option>
+              </select></div></div>
+          </div>
+        </div>
+        <div class="http-block">
+          <div class="row">
+            <div><label>path（HTTP）</label><input data-t="path" value="${esc(t.path || "")}" placeholder="v1/items/{id}（{name} 为路径参数，GET 走 query，POST 走 body）" /></div>
+            <div><label>method</label>
+              <div class="select-wrap"><select data-t="method">
+                ${["GET","POST","PUT","PATCH","DELETE"].map(
+                  (m) => `<option value="${m}" ${(t.method || "GET") === m ? "selected" : ""}>${m}</option>`
+                ).join("")}
+              </select></div>
+            </div>
+          </div>
+        </div>
+        <div class="params-block">
+          <label>参数 params</label>
+          ${ps || "<code>无参数</code>"}
+          <button type="button" class="btn add-p" style="margin-top:0.35rem;">+ 参数</button>
+        </div>
+      `;
+      div.querySelector(".rm-tool").onclick = () => {
+        div.remove();
+        reindexTools();
+      };
+      div.querySelectorAll(".rm-p").forEach((b) => {
+        b.onclick = (e) => e.target.closest(".param-row").remove();
+      });
+      div.querySelector(".add-p").onclick = () => {
+        const row = document.createElement("div");
+        row.className = "param-row";
+        row.innerHTML = `
+          <input data-k="name" placeholder="参数名" />
+          <div class="select-wrap"><select data-k="type">
+            <option value="string">string</option>
+            <option value="integer">integer</option>
+            <option value="number">number</option>
+            <option value="boolean">boolean</option>
+          </select></div>
+          <div class="select-wrap"><select data-k="required">
+            <option value="true">必填</option>
+            <option value="false">可选</option>
+          </select></div>
+          <input data-k="default" placeholder="默认值" />
+          <button type="button" class="danger rm-p">×</button>`;
+        row.querySelector(".rm-p").onclick = () => row.remove();
+        div.querySelector(".add-p").before(row);
+      };
+      return div;
+    }
+
+    function reindexTools() {
+      $("#toolsBox").querySelectorAll(".tool-card").forEach((c, i) => {
+        c.querySelector(".tool-head span").textContent = "工具 #" + (i + 1);
+      });
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function readToolsFromDom() {
+      const cards = [...$("#toolsBox").querySelectorAll(".tool-card")];
+      return cards.map((card) => {
+        const g = (sel) => card.querySelector(sel)?.value ?? "";
+        const en = card.querySelector('[data-t="en"]').value === "true";
+        const params = [...card.querySelectorAll(".param-row")].map((row) => ({
+          name: row.querySelector('[data-k="name"]').value.trim(),
+          type: row.querySelector('[data-k="type"]').value,
+          required: row.querySelector('[data-k="required"]').value === "true",
+          default: row.querySelector('[data-k="default"]').value || null,
+          description: "",
+        })).filter((p) => p.name);
+        return {
+          name: card.querySelector('[data-t="name"]').value.trim(),
+          description: card.querySelector('[data-t="desc"]').value.trim(),
+          sql: card.querySelector('[data-t="sql"]').value,
+          path: card.querySelector('[data-t="path"]').value.trim(),
+          method: card.querySelector('[data-t="method"]').value,
+          format: card.querySelector('[data-t="format"]')?.value || "json",
+          enabled: en,
+          params,
+        };
+      });
+    }
+
+    function openModal(cfg) {
+      editingId = cfg ? cfg.id : null;
+      $("#modalTitle").textContent = cfg ? "编辑配置" : "新建配置";
+      $("#f_name").value = cfg?.name || "";
+      $("#f_protocol").value = cfg?.protocol || "http";
+      $("#f_enabled").value = cfg?.enabled !== false ? "true" : "false";
+
+      const pc = cfg?.protocol_config || {};
+      $("#m_host").value = pc.host ?? "localhost";
+      $("#m_port").value = pc.port ?? 3306;
+      $("#m_user").value = pc.user ?? "root";
+      $("#m_password").value = pc.password ?? "";
+      $("#m_database").value = pc.database ?? "";
+
+      $("#h_base_url").value = pc.base_url ?? "";
+      $("#h_timeout").value = pc.timeout ?? 30;
+      $("#h_auth_type").value = pc.auth_type ?? "none";
+      $("#h_auth_token").value = pc.auth_token ?? "";
+      $("#h_auth_user").value = pc.auth_username ?? "";
+      $("#h_auth_pass").value = pc.auth_password ?? "";
+      $("#h_headers").value = pc.headers ? JSON.stringify(pc.headers, null, 0) : "";
+
+      const tb = $("#toolsBox");
+      tb.innerHTML = "";
+      const tools = (cfg?.tools && cfg.tools.length) ? cfg.tools : [emptyTool()];
+      tools.forEach((t, i) => tb.appendChild(renderToolCard({ ...emptyTool(), ...t }, i)));
+
+      syncProtocolBoxes();
+      $("#overlay").classList.add("open");
+    }
+
+    function collectPayload() {
+      const protocol = $("#f_protocol").value;
+      let protocol_config;
+      let headers = {};
+      if (protocol === "mysql") {
+        protocol_config = {
+          host: $("#m_host").value.trim(),
+          port: parseInt($("#m_port").value, 10) || 3306,
+          user: $("#m_user").value.trim(),
+          password: $("#m_password").value,
+          database: $("#m_database").value.trim(),
+        };
+      } else {
+        const ht = $("#h_headers").value.trim();
+        if (ht) {
+          try {
+            headers = JSON.parse(ht);
+            if (typeof headers !== "object" || headers === null) throw new Error();
+          } catch {
+            throw new Error("headers 必须是 JSON 对象");
+          }
+        }
+        protocol_config = {
+          base_url: $("#h_base_url").value.trim(),
+          timeout: parseInt($("#h_timeout").value, 10) || 30,
+          headers,
+          auth_type: $("#h_auth_type").value,
+          auth_token: $("#h_auth_token").value,
+          auth_username: $("#h_auth_user").value,
+          auth_password: $("#h_auth_pass").value,
+        };
+      }
+      return {
+        name: $("#f_name").value.trim(),
+        protocol,
+        enabled: $("#f_enabled").value === "true",
+        protocol_config,
+        tools: readToolsFromDom(),
+      };
+    }
+
+    $("#btnNew").onclick = () => {
+      clearFlash();
+      openModal(null);
+    };
+    $("#btnAddTool").onclick = () => {
+      const n = $("#toolsBox").querySelectorAll(".tool-card").length;
+      $("#toolsBox").appendChild(renderToolCard(emptyTool(), n));
+      syncProtocolBoxes();
+    };
+    $("#btnCancel").onclick = () => $("#overlay").classList.remove("open");
+    $("#overlay").onclick = (e) => {
+      if (e.target.id === "overlay") $("#overlay").classList.remove("open");
+    };
+
+    $("#btnSave").onclick = async () => {
+      clearFlash();
+      let payload;
+      try {
+        payload = collectPayload();
+      } catch (e) {
+        showFlash(e.message, true);
+        return;
+      }
+      try {
+        if (editingId) {
+          await api(`/api/configs/${editingId}`, {
+            method: "PUT",
+            body: JSON.stringify(payload),
+          });
+        } else {
+          await api("/api/configs", {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+        }
+        $("#overlay").classList.remove("open");
+        showFlash("已保存", false);
+        await refreshAll();
+      } catch (e) {
+        showFlash(e.message, true);
+      }
+    };
+
+    async function refreshAll() {
+      clearFlash();
+      await loadStatus();
+      const list = await api("/api/configs");
+      const tb = $("#tbody");
+      tb.innerHTML = "";
+      list.forEach((c) => {
+        const tr = document.createElement("tr");
+        const nTools = c.tools?.length ?? 0;
+        tr.innerHTML = `
+          <td><strong>${esc(c.name)}</strong></td>
+          <td>${esc(c.protocol)}</td>
+          <td>${nTools}</td>
+          <td><span class="badge ${c.enabled ? "on" : "off"}">${c.enabled ? "启用" : "停用"}</span></td>
+          <td style="white-space:nowrap;">
+            <button type="button" class="btn e">编辑</button>
+            <button type="button" class="btn t">连通性</button>
+            <button type="button" class="btn tg">开关</button>
+            <button type="button" class="btn danger d">删除</button>
+          </td>`;
+        tr.querySelector(".e").onclick = () => openModal(c);
+        tr.querySelector(".t").onclick = async () => {
+          try {
+            const r = await api(`/api/configs/${c.id}/test`, { method: "POST", body: "{}" });
+            showFlash(r.message || JSON.stringify(r), !r.ok);
+          } catch (e) {
+            showFlash(e.message, true);
+          }
+        };
+        tr.querySelector(".tg").onclick = async () => {
+          try {
+            await api(`/api/configs/${c.id}/toggle`, { method: "POST", body: "{}" });
+            await refreshAll();
+          } catch (e) {
+            showFlash(e.message, true);
+          }
+        };
+        tr.querySelector(".d").onclick = async () => {
+          if (!confirm("确定删除该配置？")) return;
+          try {
+            await api(`/api/configs/${c.id}`, { method: "DELETE" });
+            await refreshAll();
+          } catch (e) {
+            showFlash(e.message, true);
+          }
+        };
+        tb.appendChild(tr);
+      });
+    }
+
+    $("#btnRefresh").onclick = refreshAll;
+
+    refreshAll().catch((e) => {
+      showFlash("无法连接 API: " + e.message, true);
+    });
+
+    // ── Tab 切换 ─────────────────────────────────────────
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+        if (btn.dataset.tab === "services") loadServices();
+      });
+    });
+
+    // ── MCP 服务页面 ─────────────────────────────────────
+    function escHtml(s) {
+      return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    async function loadServices() {
+      const summary = $("#svcSummary");
+      const list = $("#svcList");
+      summary.textContent = "加载中…";
+      list.innerHTML = "";
+      try {
+        const tools = await api("/api/services");
+        summary.innerHTML = `已注册 <strong>${tools.length}</strong> 个工具`;
+        if (!tools.length) {
+          list.innerHTML = '<p style="color:var(--muted);font-size:0.9rem;">暂无已注册的 MCP 工具。请先在「配置管理」中添加配置并启用。</p>';
+          return;
+        }
+        tools.forEach((t) => {
+          const card = document.createElement("div");
+          card.className = "svc-card";
+          let detailHtml = "";
+          let paramsHtml = "";
+          if (t.protocol === "mysql") {
+            if (t.sql) detailHtml += `<dt>SQL</dt><dd><pre style="margin:0;white-space:pre-wrap;font-size:0.8rem;">${escHtml(t.sql)}</pre></dd>`;
+          } else {
+            if (t.path) detailHtml += `<dt>Path</dt><dd>${escHtml(t.method)} ${escHtml(t.path)}</dd>`;
+          }
+          // 参数配置对 MySQL 和 HTTP 都显示
+          paramsHtml = t.params && t.params.length
+            ? `<div class="svc-params"><table><thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>默认值</th></tr></thead><tbody>${
+                t.params.map((p) => `<tr><td><code>${escHtml(p.name)}</code></td><td>${escHtml(p.type)}</td><td>${p.required ? "是" : "否"}</td><td>${escHtml(p.default ?? "—")}</td></tr>`).join("")
+              }</tbody></table></div>`
+            : '<p style="color:var(--muted);font-size:0.8rem;margin:0.5rem 0 0;">无参数</p>';
+
+
+          card.innerHTML = `
+            <div class="svc-card-head">
+              <div class="left">
+                <span class="badge ${t.protocol === "mysql" ? "on" : ""}">${escHtml(t.protocol)}</span>
+                <span class="name">${escHtml(t.full_name)}</span>
+                <span class="desc">${escHtml(t.description)}</span>
+              </div>
+              <span class="arrow">▸</span>
+            </div>
+            <div class="svc-card-body">
+              ${detailHtml ? `<dl class="svc-detail-grid">${detailHtml}</dl>` : ""}
+              ${paramsHtml}
+            </div>`;
+          card.querySelector(".svc-card-head").addEventListener("click", () => {
+            card.classList.toggle("open");
+          });
+          list.appendChild(card);
+        });
+      } catch (e) {
+        summary.textContent = "加载失败";
+        list.innerHTML = `<p style="color:var(--danger);font-size:0.9rem;">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    $("#btnRefreshSvc").addEventListener("click", loadServices);
+  </script>
+</body>
+</html>
