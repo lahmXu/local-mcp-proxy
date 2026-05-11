@@ -100,7 +100,3 @@ python main.py --mcp-transport stdio
 │   └── mcp_configs.json # 工具配置文件（自动生成）
 └── requirements.txt     # Python 依赖
 ```
-
-## 许可证
-
-MIT
