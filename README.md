@@ -12,7 +12,7 @@
 
 ## 下载安装
 
-从 [Releases](https://github.com/.../releases) 页面下载压缩包：
+从 [Releases](https://github.com/lahmXu/local-mcp-proxy/releases) 页面下载压缩包：
 
 | 平台 | 文件名 |
 |------|--------|
