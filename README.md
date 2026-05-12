@@ -10,37 +10,76 @@
 - 提供 Web 管理界面，可视化管理工具配置
 - 支持 streamable-http 和 stdio 两种传输模式
 
-## 快速开始
+## 下载安装
 
-### 环境要求
+从 [Releases](https://github.com/.../releases) 页面下载压缩包：
 
-- Python 3.10+
-- MySQL（可选，如需使用 MySQL 数据源）
+| 平台 | 文件名 |
+|------|--------|
+| macOS (Apple Silicon) | `dist-v0.0.1-darwin-arm64.zip` |
 
-### 安装依赖
-
-```bash
-# 使用 Conda 环境
-conda create -n mcp python=3.10
-conda activate mcp
-
-# 安装依赖
-pip install -r requirements.txt
-```
-
-### 启动服务
+解压后进入目录：
 
 ```bash
-# streamable-http 模式（默认，端口 9210）
-python main.py
-
-# stdio 模式（供 Cursor 等 MCP 客户端直接连接）
-python main.py --mcp-transport stdio
+unzip dist-v0.0.1-darwin-arm64.zip
+cd dist-v0.0.1-darwin-arm64
+chmod +x local-mcp-proxy start.sh stop.sh
 ```
 
-启动后访问 http://127.0.0.1:9211 进入 Web 管理界面，在界面上配置 MySQL/HTTP 数据源。
+目录结构：
+
+```
+dist-v0.0.1-darwin-arm64/
+├── local-mcp-proxy        # 可执行文件
+├── start.sh               # 启动脚本
+├── stop.sh                # 停止脚本
+├── configs/
+│   └── proxy_configs.json # 配置文件（首次启动自动生成）
+└── logs/
+    └── server.log         # 日志（启动后自动生成）
+```
+
+## 启动服务
+
+```bash
+# 默认启动（streamable-http 模式，端口 9210）
+./start.sh
+
+# 指定端口
+./start.sh --port 9212
+
+# stdio 模式（供 Cursor/Claude Code 等客户端直接连接）
+./start.sh --stdio
+```
+
+启动成功后会显示：
+
+```
+==================================================
+  MCP 地址:   http://127.0.0.1:9210/mcp
+  配置页面:   http://127.0.0.1:9211
+  配置文件:   /path/to/configs/
+  日志文件:   /path/to/logs/server.log
+==================================================
+```
+
+## 停止服务
+
+```bash
+./stop.sh
+```
 
 ## MCP 客户端配置
+
+### Claude Code
+
+```bash
+# streamable-http 模式
+claude mcp add --transport http local-mcp-proxy http://127.0.0.1:9210/mcp
+
+# 全局添加（所有项目可用）
+claude mcp add --scope user --transport http local-mcp-proxy http://127.0.0.1:9210/mcp
+```
 
 ### Cursor / Claude Desktop（streamable-http）
 
@@ -54,24 +93,32 @@ python main.py --mcp-transport stdio
 }
 ```
 
-### Cursor / Claude Desktop（stdio）
+## Web 管理界面
 
-```json
-{
-  "mcpServers": {
-    "local-mcp-proxy": {
-      "command": "python",
-      "args": ["/path/to/main.py", "--mcp-transport", "stdio"]
-    }
-  }
-}
-```
+启动服务后访问 http://127.0.0.1:9211，在界面上配置 MySQL/HTTP 数据源和工具定义。
+
+Web 界面提供：
+- MCP 配置的增删改查
+- 工具定义管理（参数、SQL/HTTP 配置）
+- 连接测试（MySQL/HTTP）
+- 服务状态监控
+- 默认用户名/密码: admin/admin123
 
 ## 命令行参数
 
+### start.sh 参数
+
 | 参数 | 说明 | 默认值 |
 |------|------|--------|
-| `--config-dir` | 配置目录路径 | 项目目录下 configs/ |
+| `--stdio` | 使用 stdio 传输模式 | 否（默认 streamable-http） |
+| `--host` | MCP 监听地址 | 127.0.0.1 |
+| `--port` | MCP 端口 | 9210 |
+
+### local-mcp-proxy 参数
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--config-dir` | 配置目录路径 | 当前目录下 configs/ |
 | `--web-host` | 管理页面监听地址 | 127.0.0.1 |
 | `--web-port` | 管理页面端口 | 9211 |
 | `--mcp-transport` | MCP 传输模式（stdio / streamable-http） | streamable-http |
@@ -84,6 +131,32 @@ python main.py --mcp-transport stdio
 | 变量 | 说明 |
 |------|------|
 | `MCP_PROXY_CONFIG_DIR` | 配置目录路径（等同于 `--config-dir`） |
+
+## 从源码构建
+
+如需自行构建可执行文件，参见下方说明。
+
+### 环境要求
+
+- Python 3.10+
+- Conda（推荐）
+
+### 构建步骤
+
+```bash
+# 创建并激活 Conda 环境
+conda create -n mcp python=3.10
+conda activate mcp
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 直接运行
+python main.py
+
+# 打包为可执行文件
+./scripts/build.sh
+```
 
 ## 项目结构
 
@@ -100,8 +173,3 @@ python main.py --mcp-transport stdio
 │   └── mcp_configs.json # 工具配置文件（自动生成）
 └── requirements.txt     # Python 依赖
 ```
-
-
-### 如何使用
-claude mcp add --transport http local-mcp-proxy http://127.0.0.1:9210/mcp
-claude mcp add --scope user --transport http local-mcp-proxy http://127.0.0.1:9210/mcp
