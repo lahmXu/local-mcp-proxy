@@ -13,6 +13,7 @@ from models import (
     ProtocolType,
     MySQLConfig,
     HTTPConfig,
+    FilesystemConfig,
     ToolConfig,
 )
 
@@ -44,7 +45,7 @@ def _get_secret_key(config_dir: Path) -> str:
 
 
 def _load_login_file(config_dir: Path) -> dict:
-    login_file = config_dir / "login_configs.json"
+    login_file = config_dir / "proxy_configs.json"
     if login_file.exists():
         try:
             with open(login_file, "r", encoding="utf-8") as f:
@@ -55,8 +56,16 @@ def _load_login_file(config_dir: Path) -> dict:
     return {}
 
 
+def _save_proxy_config(config_dir: Path, data: dict):
+    proxy_file = config_dir / "proxy_configs.json"
+    existing = _load_login_file(config_dir)
+    existing.update(data)
+    with open(proxy_file, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+
+
 def _users_from_login_json(raw: dict) -> dict[str, str]:
-    """从 login_configs.json 解析 用户名 -> 密码。"""
+    """从 proxy_configs.json 解析 用户名 -> 密码。"""
     if not raw:
         return {}
     if raw.get("username") and "password" in raw:
@@ -72,8 +81,14 @@ def _users_from_login_json(raw: dict) -> dict[str, str]:
     }
 
 
-def create_app(storage: ConfigStorage, proxy_manager=None) -> Flask:
+def create_app(storage: ConfigStorage, proxy_manager=None, call_logger=None) -> Flask:
     config_dir = storage.config_dir
+
+    # 从 proxy_configs.json 读取日志开关状态
+    if call_logger:
+        proxy_cfg = _load_login_file(config_dir)
+        if "logging_enabled" in proxy_cfg:
+            call_logger.set_enabled(bool(proxy_cfg["logging_enabled"]))
 
     app = Flask(__name__, static_folder=None)
     app.config["JSON_AS_ASCII"] = False
@@ -112,7 +127,7 @@ def create_app(storage: ConfigStorage, proxy_manager=None) -> Flask:
         user_map = _users_from_login_json(raw)
 
         if not user_map:
-            return jsonify({"error": "未配置登录账号，请在 configs/login_configs.json 中设置"}), 500
+            return jsonify({"error": "未配置登录账号，请在 configs/proxy_configs.json 中设置"}), 500
 
         if username in user_map and user_map[username] == password:
             session["logged_in"] = True
@@ -218,6 +233,8 @@ def create_app(storage: ConfigStorage, proxy_manager=None) -> Flask:
             return _test_mysql(cfg)
         elif cfg.protocol == ProtocolType.HTTP:
             return _test_http(cfg)
+        elif cfg.protocol == ProtocolType.FILESYSTEM:
+            return _test_filesystem(cfg)
         return jsonify({"error": "未知协议"}), 400
 
     # ── MCP 服务详情 ──────────────────────────────────────
@@ -232,14 +249,58 @@ def create_app(storage: ConfigStorage, proxy_manager=None) -> Flask:
     def status():
         configs = storage.list_all()
         enabled = [c for c in configs if c.enabled]
-        tool_count = sum(len([t for t in c.tools if t.enabled]) for c in enabled)
+        tool_count = sum(len(c.tools) for c in configs)
         registered = proxy_manager.get_registered_tools() if proxy_manager else []
         return jsonify({
             "total_configs": len(configs),
             "enabled_configs": len(enabled),
             "total_tools": tool_count,
             "registered_tools": registered,
+            "logging_enabled": call_logger.enabled if call_logger else True,
         })
+
+    # ── 调用日志 ──────────────────────────────────────────
+    @app.route("/api/logs", methods=["GET"])
+    def list_logs():
+        if not call_logger:
+            return jsonify({"entries": [], "total": 0, "offset": 0, "limit": 50})
+        protocol = request.args.get("protocol", "").strip() or None
+        tool_name = request.args.get("tool_name", "").strip() or None
+        success_str = request.args.get("success", "").strip()
+        success = None
+        if success_str == "true":
+            success = True
+        elif success_str == "false":
+            success = False
+        time_range = request.args.get("time_range", "").strip() or None
+        offset = int(request.args.get("offset", 0))
+        limit = int(request.args.get("limit", 50))
+        entries, total = call_logger.query(
+            protocol=protocol,
+            tool_name=tool_name,
+            success=success,
+            time_range=time_range,
+            offset=offset,
+            limit=limit,
+        )
+        return jsonify({
+            "entries": entries,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+        })
+
+    @app.route("/api/logs/toggle", methods=["POST"])
+    def toggle_logs():
+        if not call_logger:
+            return jsonify({"error": "日志未初始化"}), 500
+        new_state = not call_logger.enabled
+        data = request.get_json(force=True, silent=True) or {}
+        if "enabled" in data:
+            new_state = bool(data["enabled"])
+        call_logger.set_enabled(new_state)
+        _save_proxy_config(config_dir, {"logging_enabled": new_state})
+        return jsonify({"enabled": call_logger.enabled})
 
     def _notify_reload():
         if proxy_manager:
@@ -264,6 +325,13 @@ def _validate_config(cfg: MCPConfig) -> str | None:
     elif cfg.protocol == ProtocolType.HTTP:
         if cfg.protocol_config is None or not cfg.protocol_config.base_url:
             return "HTTP 需要 protocol_config.base_url"
+    elif cfg.protocol == ProtocolType.FILESYSTEM:
+        if cfg.protocol_config is None or not cfg.protocol_config.root_dir:
+            return "文件系统需要 protocol_config.root_dir"
+        import os
+        root = cfg.protocol_config.root_dir
+        if not os.path.isdir(root):
+            return f"文件系统根目录不存在: {root}"
     for t in cfg.tools:
         if not (t.name or "").strip():
             return "每个工具需要提供 name"
@@ -274,6 +342,9 @@ def _validate_config(cfg: MCPConfig) -> str | None:
             return f"MySQL 工具「{t.name}」需要 sql"
         if cfg.protocol == ProtocolType.HTTP and not (t.path or "").strip():
             return f"HTTP 工具「{t.name}」需要 path"
+        if cfg.protocol == ProtocolType.FILESYSTEM:
+            if not (t.operation or "").strip():
+                return f"文件系统工具「{t.name}」需要选择操作类型"
     return None
 
 
@@ -284,8 +355,10 @@ def _parse_config(cfg_id: str, data: dict) -> MCPConfig:
     if pc_data:
         if protocol == ProtocolType.MYSQL:
             protocol_config = MySQLConfig.from_dict(pc_data)
-        else:
+        elif protocol == ProtocolType.HTTP:
             protocol_config = HTTPConfig.from_dict(pc_data)
+        elif protocol == ProtocolType.FILESYSTEM:
+            protocol_config = FilesystemConfig.from_dict(pc_data)
 
     tools = [ToolConfig.from_dict(t) for t in data.get("tools", [])]
 
@@ -361,3 +434,27 @@ def _test_http(cfg: MCPConfig) -> tuple:
         })
     except Exception as e:
         return jsonify({"ok": False, "message": f"HTTP 请求失败: {e}"})
+
+
+def _test_filesystem(cfg: MCPConfig) -> tuple:
+    import os
+    fc = cfg.protocol_config
+    if not fc or not fc.root_dir:
+        return jsonify({"ok": False, "message": "文件系统连接失败: 未配置 root_dir"})
+    root = fc.root_dir
+    if not os.path.exists(root):
+        return jsonify({"ok": False, "message": f"目录不存在: {root}"})
+    if not os.path.isdir(root):
+        return jsonify({"ok": False, "message": f"路径不是目录: {root}"})
+    if not os.access(root, os.R_OK):
+        return jsonify({"ok": False, "message": f"无读取权限: {root}"})
+    try:
+        entries = os.listdir(root)
+        file_count = sum(1 for e in entries if os.path.isfile(os.path.join(root, e)))
+        dir_count = sum(1 for e in entries if os.path.isdir(os.path.join(root, e)))
+        return jsonify({
+            "ok": True,
+            "message": f"目录可访问: {root}（{dir_count} 个子目录，{file_count} 个文件）",
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "message": f"访问目录失败: {e}"})

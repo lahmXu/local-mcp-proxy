@@ -1,8 +1,10 @@
-"""协议适配器：MySQL 和 HTTP 的实际执行逻辑"""
+"""协议适配器：MySQL、HTTP 和文件系统的实际执行逻辑"""
 import hashlib
 import json
 import logging
+import os
 import re
+import time
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -10,9 +12,9 @@ import mysql.connector
 import mysql.connector.pooling
 import requests
 
-from models import MCPConfig, MySQLConfig, HTTPConfig, ToolConfig, ProtocolType
+from models import MCPConfig, MySQLConfig, HTTPConfig, FilesystemConfig, ToolConfig, ProtocolType
 
-logger = logging.getLogger("mcp-proxy")
+logger = logging.getLogger("local-mcp-proxy")
 
 
 def _json_value(v: Any, is_json_col: bool = False) -> Any:
@@ -167,13 +169,126 @@ def execute_http_tool(
         return f"HTTP 请求失败: {e}"
 
 
+# ── 文件系统适配器 ─────────────────────────────────────────
+
+_MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB
+
+
+def _safe_resolve(root_dir: str, relative_path: str) -> str:
+    """将相对路径解析为绝对路径，校验不逃逸出 root_dir。"""
+    root_real = os.path.realpath(root_dir)
+    resolved = os.path.realpath(os.path.join(root_real, relative_path))
+    if not (resolved == root_real or resolved.startswith(root_real + os.sep)):
+        raise ValueError(f"路径越权，不能访问根目录以外的路径: {relative_path}")
+    return resolved
+
+
+def _fs_read_file(root_dir: str, file_path: str, encoding: str = "utf-8") -> str:
+    abs_path = _safe_resolve(root_dir, file_path)
+    if not os.path.isfile(abs_path):
+        return f"文件不存在: {file_path}"
+    size = os.path.getsize(abs_path)
+    if size > _MAX_FILE_SIZE:
+        return f"文件过大 ({size} bytes)，超过 {_MAX_FILE_SIZE} bytes 限制: {file_path}"
+    try:
+        with open(abs_path, "r", encoding=encoding) as f:
+            return f.read()
+    except UnicodeDecodeError:
+        return f"文件不是有效的 {encoding} 编码，可能是二进制文件: {file_path}"
+
+
+def _fs_list_directory(root_dir: str, dir_path: str = "") -> str:
+    abs_path = _safe_resolve(root_dir, dir_path or ".")
+    if not os.path.isdir(abs_path):
+        return f"目录不存在: {dir_path}"
+    entries = []
+    try:
+        for name in sorted(os.listdir(abs_path)):
+            full = os.path.join(abs_path, name)
+            stat = os.stat(full)
+            entries.append({
+                "name": name,
+                "type": "directory" if os.path.isdir(full) else "file",
+                "size": stat.st_size,
+                "mtime": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+            })
+    except PermissionError:
+        return f"无权限访问目录: {dir_path}"
+    return json.dumps(entries, ensure_ascii=False)
+
+
+def _resolve_fs_path(arguments: Dict[str, Any], tool: ToolConfig) -> str:
+    """从 arguments 中解析文件路径：优先取 'path' 键，否则取第一个参数值，最后回退到 tool.path。"""
+    if "path" in arguments:
+        return str(arguments["path"])
+    if arguments:
+        return str(next(iter(arguments.values())))
+    return tool.path or ""
+
+
+def execute_filesystem_tool(
+    mcp_config: MCPConfig, tool: ToolConfig, arguments: Dict[str, Any]
+) -> str:
+    cfg: FilesystemConfig = mcp_config.protocol_config
+    op = tool.operation
+    try:
+        if op == "read_file":
+            file_path = _resolve_fs_path(arguments, tool)
+            encoding = arguments.get("encoding", "utf-8")
+            return _fs_read_file(cfg.root_dir, file_path, encoding)
+        elif op == "list_directory":
+            dir_path = _resolve_fs_path(arguments, tool)
+            return _fs_list_directory(cfg.root_dir, dir_path)
+        return f"不支持的文件系统操作: {op}"
+    except ValueError as e:
+        return f"路径校验失败: {e}"
+    except Exception as e:
+        logger.error("文件系统操作失败: %s", e, exc_info=True)
+        return f"文件系统操作失败: {e}"
+
+
 # ── 统一调度 ──────────────────────────────────────────────
 
-def execute_tool(
+# ── 日志注入点（由 main.py 初始化后设置）──────────────────
+_call_logger = None
+
+
+def set_call_logger(cl):
+    global _call_logger
+    _call_logger = cl
+
+
+def _do_execute(
     mcp_config: MCPConfig, tool: ToolConfig, arguments: Dict[str, Any]
 ) -> str:
     if mcp_config.protocol == ProtocolType.MYSQL:
         return execute_mysql_tool(mcp_config, tool, arguments)
     elif mcp_config.protocol == ProtocolType.HTTP:
         return execute_http_tool(mcp_config, tool, arguments)
+    elif mcp_config.protocol == ProtocolType.FILESYSTEM:
+        return execute_filesystem_tool(mcp_config, tool, arguments)
     return f"不支持的协议: {mcp_config.protocol}"
+
+
+def execute_tool(
+    mcp_config: MCPConfig, tool: ToolConfig, arguments: Dict[str, Any]
+) -> str:
+    start = time.monotonic()
+    tool_name = f"{mcp_config.name}__{tool.name}"
+    try:
+        result = _do_execute(mcp_config, tool, arguments)
+        duration_ms = (time.monotonic() - start) * 1000
+        if _call_logger:
+            _call_logger.log(
+                tool_name, mcp_config.protocol.value,
+                arguments, result, duration_ms, success=True,
+            )
+        return result
+    except Exception as e:
+        duration_ms = (time.monotonic() - start) * 1000
+        if _call_logger:
+            _call_logger.log(
+                tool_name, mcp_config.protocol.value,
+                arguments, f"异常: {e}", duration_ms, success=False,
+            )
+        raise

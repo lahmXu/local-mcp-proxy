@@ -100,6 +100,9 @@
     }
     .badge.on { background: #f0fdf4; border-color: #bbf7d0; color: var(--ok); }
     .badge.off { background: #f8fafc; color: var(--muted); }
+    .badge.mysql { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .badge.http { background: #f5f3ff; border-color: #ddd6fe; color: #7c3aed; }
+    .badge.filesystem { background: #fffbeb; border-color: #fde68a; color: #b45309; }
     .toolbar { margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
     .msg {
       margin: 0.75rem 0;
@@ -221,8 +224,8 @@
     .tool-head span { font-weight: 600; font-size: 0.9rem; }
     .param-row {
       display: grid;
-      grid-template-columns: 1fr 100px 80px 1fr 36px;
-      gap: 0.35rem;
+      grid-template-columns: 1fr 80px 60px 1fr 1fr 32px;
+      gap: 0.3rem;
       align-items: center;
       margin-bottom: 0.35rem;
     }
@@ -264,20 +267,52 @@
     .svc-summary {
       font-size: 0.85rem;
       color: var(--muted);
-      margin-bottom: 1rem;
     }
     .svc-summary strong { color: var(--accent); }
+    .svc-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      font-size: 0.85rem;
+      color: #1e40af;
+      font-weight: 500;
+    }
+    .svc-stat .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 24px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 6px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .svc-stat .sub {
+      color: #64748b;
+      font-weight: 400;
+    }
     .svc-card {
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       margin-bottom: 0.75rem;
       overflow: hidden;
+      background: var(--panel);
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.15s;
     }
+    .svc-card:hover { box-shadow: var(--shadow-md); }
     .svc-card-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.65rem 0.75rem;
+      padding: 0.75rem 1rem;
       cursor: pointer;
       user-select: none;
     }
@@ -287,6 +322,7 @@
       align-items: center;
       gap: 0.5rem;
       min-width: 0;
+      flex-wrap: wrap;
     }
     .svc-card-head .name {
       font-weight: 600;
@@ -302,9 +338,30 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .svc-card-head .config-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .svc-card-head .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #16a34a;
+      flex-shrink: 0;
+    }
+    .svc-card-head .status-dot.off { background: #94a3b8; }
     .svc-card-body {
       display: none;
-      padding: 0 0.75rem 0.75rem;
+      padding: 0.5rem 1rem 1rem;
       border-top: 1px solid var(--border);
       font-size: 0.85rem;
     }
@@ -313,6 +370,7 @@
       transition: transform 0.2s;
       font-size: 0.75rem;
       color: var(--muted);
+      flex-shrink: 0;
     }
     .svc-card.open .svc-card-head .arrow { transform: rotate(90deg); }
     .svc-detail-grid {
@@ -326,6 +384,43 @@
     .svc-params { margin-top: 0.5rem; }
     .svc-params table { font-size: 0.8rem; }
     .svc-params th { font-size: 0.75rem; }
+    /* log table */
+    #logTbody td { font-size: 0.82rem; vertical-align: top; }
+    #logTbody .log-args,
+    #logTbody .log-result { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
+    #logTbody .log-time { white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
+    .badge.ok { background: #f0fdf4; border-color: #bbf7d0; color: var(--ok); }
+    .badge.fail { background: #fef2f2; border-color: #fecaca; color: var(--danger); }
+    /* log toggle */
+    .log-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.9rem 0.4rem 0.5rem;
+      border-radius: 999px;
+      border: 2px solid #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .log-toggle.on {
+      border-color: #86efac;
+      background: #f0fdf4;
+      color: #166534;
+    }
+    .log-toggle:hover { box-shadow: var(--shadow-sm); }
+    .log-toggle-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #dc2626;
+      transition: background 0.2s ease;
+    }
+    .log-toggle.on .log-toggle-dot { background: #16a34a; }
   </style>
 </head>
 <body>
@@ -339,21 +434,29 @@
   <main>
     <div class="stats">
       <div class="stat-card"><div class="stat-label">配置总数</div><div class="stat-value" id="sTotal">-</div></div>
-      <div class="stat-card"><div class="stat-label">已启用</div><div class="stat-value accent" id="sEnabled">-</div></div>
-      <div class="stat-card"><div class="stat-label">工具数</div><div class="stat-value" id="sTools">-</div></div>
-      <div class="stat-card"><div class="stat-label">已注册</div><div class="stat-value ok" id="sRegistered">-</div></div>
+      <div class="stat-card"><div class="stat-label">已启用配置</div><div class="stat-value accent" id="sEnabled">-</div></div>
+      <div class="stat-card"><div class="stat-label">工具总数</div><div class="stat-value" id="sTools">-</div></div>
+      <div class="stat-card"><div class="stat-label">已启用工具</div><div class="stat-value ok" id="sRegistered">-</div></div>
     </div>
 
     <nav class="tabs">
       <button type="button" class="tab-btn active" data-tab="config">配置管理</button>
       <button type="button" class="tab-btn" data-tab="services">MCP 服务</button>
+      <button type="button" class="tab-btn" data-tab="logs">调用日志</button>
     </nav>
 
     <!-- 配置管理 tab -->
     <div class="tab-panel active" id="tab-config">
       <div class="msg" id="flash"></div>
       <div class="toolbar">
-        <button type="button" class="primary" id="btnNew">新建配置</button>
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+          <button type="button" class="primary" id="btnNew">新建配置</button>
+          <div class="select-wrap" style="width:auto;"><select id="cfgFilterEnabled">
+            <option value="">全部状态</option>
+            <option value="true">已启用</option>
+            <option value="false">已停用</option>
+          </select></div>
+        </div>
         <button type="button" id="btnRefresh">刷新</button>
       </div>
       <div class="table-wrap">
@@ -374,11 +477,79 @@
 
     <!-- MCP 服务 tab -->
     <div class="tab-panel" id="tab-services">
-      <div class="toolbar">
-        <div class="svc-summary" id="svcSummary">加载中…</div>
+      <div class="toolbar" style="gap:0.5rem;">
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+          <input id="svcFilterName" placeholder="配置名称搜索" style="width:160px;padding:0.4rem 0.6rem;" />
+          <div class="select-wrap" style="width:auto;"><select id="svcFilterProtocol">
+            <option value="">全部协议</option>
+            <option value="mysql">mysql</option>
+            <option value="http">http</option>
+            <option value="filesystem">filesystem</option>
+          </select></div>
+          <div class="select-wrap" style="width:auto;"><select id="svcFilterEnabled">
+            <option value="">全部状态</option>
+            <option value="true">已启用</option>
+            <option value="false">已停用</option>
+          </select></div>
+        </div>
         <button type="button" id="btnRefreshSvc">刷新</button>
       </div>
       <div id="svcList"></div>
+    </div>
+
+    <!-- 调用日志 tab -->
+    <div class="tab-panel" id="tab-logs">
+      <div class="toolbar" style="gap:0.5rem;">
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
+          <button type="button" id="logToggle" class="log-toggle on">
+            <span class="log-toggle-dot"></span>
+            <span id="logToggleLabel">日志记录中</span>
+          </button>
+          <div class="select-wrap" style="width:auto;"><select id="logFilterProtocol">
+            <option value="">全部协议</option>
+            <option value="mysql">mysql</option>
+            <option value="http">http</option>
+            <option value="filesystem">filesystem</option>
+          </select></div>
+          <input id="logFilterTool" placeholder="工具名搜索" style="width:180px;padding:0.4rem 0.6rem;" />
+          <div class="select-wrap" style="width:auto;"><select id="logFilterSuccess">
+            <option value="">全部状态</option>
+            <option value="true">成功</option>
+            <option value="false">失败</option>
+          </select></div>
+          <div class="select-wrap" style="width:auto;"><select id="logFilterTime">
+            <option value="">全部时间</option>
+            <option value="1h">最近 1 小时</option>
+            <option value="6h">最近 6 小时</option>
+            <option value="24h">最近 24 小时</option>
+            <option value="7d">最近 7 天</option>
+          </select></div>
+          <button type="button" class="primary" id="btnLogSearch">查询</button>
+          <button type="button" id="btnLogRefresh">刷新</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th>协议</th>
+              <th>工具名</th>
+              <th>参数</th>
+              <th>耗时</th>
+              <th>状态</th>
+              <th>结果</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="logTbody"></tbody>
+        </table>
+      </div>
+      <div class="log-pagination" id="logPagination" style="display:flex;justify-content:center;gap:0.5rem;margin-top:0.75rem;align-items:center;">
+        <button type="button" id="btnLogPrev" disabled>上一页</button>
+        <span id="logPageInfo" style="font-size:0.85rem;color:var(--muted);"></span>
+        <button type="button" id="btnLogNext" disabled>下一页</button>
+      </div>
     </div>
   </main>
 
@@ -397,6 +568,7 @@
           <div class="select-wrap"><select id="f_protocol">
             <option value="http">http</option>
             <option value="mysql">mysql</option>
+            <option value="filesystem">filesystem</option>
           </select></div>
         </div>
         <div>
@@ -442,6 +614,11 @@
         <div><label>headers（JSON 对象，可选）</label><textarea id="h_headers" placeholder='{"Accept":"application/json"}'></textarea></div>
       </div>
 
+      <div class="section" id="box_filesystem">
+        <h3 style="margin:0 0 0.5rem;font-size:0.95rem;">文件系统 protocol_config</h3>
+        <div><label>根目录 root_dir（所有操作限制在此目录内）</label><input id="fs_root_dir" placeholder="/path/to/directory" /></div>
+      </div>
+
       <div class="section">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <h3 style="margin:0;font-size:0.95rem;">工具列表 tools</h3>
@@ -453,6 +630,17 @@
       <div class="modal-actions">
         <button type="button" id="btnCancel">取消</button>
         <button type="button" class="primary" id="btnSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 日志详情弹框 -->
+  <div class="overlay" id="jsonOverlay">
+    <div class="modal" style="width:min(800px,95%);max-height:85vh;">
+      <h2 style="margin:0 0 0.75rem;font-size:1rem;">调用详情</h2>
+      <div id="logDetailContent" style="font-size:0.85rem;"></div>
+      <div class="modal-actions">
+        <button type="button" onclick="document.getElementById('jsonOverlay').classList.remove('open')">关闭</button>
       </div>
     </div>
   </div>
@@ -496,6 +684,9 @@
       $("#sEnabled").textContent = s.enabled_configs;
       $("#sTools").textContent = s.total_tools;
       $("#sRegistered").textContent = s.registered_tools?.length ?? 0;
+      if (typeof s.logging_enabled !== "undefined") {
+        updateLogToggleUI(s.logging_enabled);
+      }
     }
 
     (async function initUser() {
@@ -529,6 +720,7 @@
         method: "GET",
         enabled: true,
         params: [],
+        operation: "",
       };
     }
 
@@ -536,14 +728,16 @@
       const p = $("#f_protocol").value;
       $("#box_mysql").style.display = p === "mysql" ? "block" : "none";
       $("#box_http").style.display = p === "http" ? "block" : "none";
+      $("#box_filesystem").style.display = p === "filesystem" ? "block" : "none";
       // 同步工具卡片内的字段显示
       document.querySelectorAll("#toolsBox .tool-card").forEach((card) => {
         const sqlBlock = card.querySelector(".sql-block");
         const httpBlock = card.querySelector(".http-block");
+        const fsBlock = card.querySelector(".fs-block");
         const paramsBlock = card.querySelector(".params-block");
         if (sqlBlock) sqlBlock.style.display = p === "mysql" ? "block" : "none";
         if (httpBlock) httpBlock.style.display = p === "http" ? "block" : "none";
-        // 参数配置对 MySQL 和 HTTP 都可见
+        if (fsBlock) fsBlock.style.display = p === "filesystem" ? "block" : "none";
         if (paramsBlock) paramsBlock.style.display = "block";
       });
     }
@@ -566,7 +760,8 @@
             <option value="true" ${p.required !== false ? "selected" : ""}>必填</option>
             <option value="false" ${p.required === false ? "selected" : ""}>可选</option>
           </select></div>
-          <input data-k="default" placeholder="默认值（可选）" value="${esc(p.default ?? "")}" />
+          <input data-k="desc" placeholder="参数描述" value="${esc(p.description || "")}" />
+          <input data-k="default" placeholder="默认值" value="${esc(p.default ?? "")}" />
           <button type="button" class="danger rm-p" title="删参数">×</button>
         </div>`
       ).join("");
@@ -607,6 +802,17 @@
             </div>
           </div>
         </div>
+        <div class="fs-block">
+          <label>操作类型（文件系统）</label>
+          <div class="select-wrap"><select data-t="operation">
+            <option value="" ${!t.operation ? "selected" : ""}>请选择</option>
+            <option value="read_file" ${t.operation === "read_file" ? "selected" : ""}>读取文件</option>
+            <option value="list_directory" ${t.operation === "list_directory" ? "selected" : ""}>列举目录</option>
+          </select></div>
+          <div class="row" style="margin-top:0.5rem">
+            <div><label>相对路径 path（可选）</label><input data-t="fs_path" value="${esc(t.path || "")}" placeholder="subdir/file.txt（相对于根目录）" /></div>
+          </div>
+        </div>
         <div class="params-block">
           <label>参数 params</label>
           ${ps || "<code>无参数</code>"}
@@ -635,6 +841,7 @@
             <option value="true">必填</option>
             <option value="false">可选</option>
           </select></div>
+          <input data-k="desc" placeholder="参数描述" />
           <input data-k="default" placeholder="默认值" />
           <button type="button" class="danger rm-p">×</button>`;
         row.querySelector(".rm-p").onclick = () => row.remove();
@@ -666,17 +873,22 @@
           type: row.querySelector('[data-k="type"]').value,
           required: row.querySelector('[data-k="required"]').value === "true",
           default: row.querySelector('[data-k="default"]').value || null,
-          description: "",
+          description: row.querySelector('[data-k="desc"]')?.value?.trim() || "",
         })).filter((p) => p.name);
+        const operation = card.querySelector('[data-t="operation"]')?.value || "";
+        // filesystem: path 取 fs_path 字段；其他协议取 http path
+        const fsPath = card.querySelector('[data-t="fs_path"]')?.value?.trim() || "";
+        const httpPath = card.querySelector('[data-t="path"]')?.value?.trim() || "";
         return {
           name: card.querySelector('[data-t="name"]').value.trim(),
           description: card.querySelector('[data-t="desc"]').value.trim(),
           sql: card.querySelector('[data-t="sql"]').value,
-          path: card.querySelector('[data-t="path"]').value.trim(),
+          path: operation ? fsPath : httpPath,
           method: card.querySelector('[data-t="method"]').value,
           format: card.querySelector('[data-t="format"]')?.value || "json",
           enabled: en,
           params,
+          operation,
         };
       });
     }
@@ -703,6 +915,8 @@
       $("#h_auth_pass").value = pc.auth_password ?? "";
       $("#h_headers").value = pc.headers ? JSON.stringify(pc.headers, null, 0) : "";
 
+      $("#fs_root_dir").value = pc.root_dir ?? "";
+
       const tb = $("#toolsBox");
       tb.innerHTML = "";
       const tools = (cfg?.tools && cfg.tools.length) ? cfg.tools : [emptyTool()];
@@ -715,7 +929,6 @@
     function collectPayload() {
       const protocol = $("#f_protocol").value;
       let protocol_config;
-      let headers = {};
       if (protocol === "mysql") {
         protocol_config = {
           host: $("#m_host").value.trim(),
@@ -724,7 +937,8 @@
           password: $("#m_password").value,
           database: $("#m_database").value.trim(),
         };
-      } else {
+      } else if (protocol === "http") {
+        let headers = {};
         const ht = $("#h_headers").value.trim();
         if (ht) {
           try {
@@ -742,6 +956,10 @@
           auth_token: $("#h_auth_token").value,
           auth_username: $("#h_auth_user").value,
           auth_password: $("#h_auth_pass").value,
+        };
+      } else if (protocol === "filesystem") {
+        protocol_config = {
+          root_dir: $("#fs_root_dir").value.trim(),
         };
       }
       return {
@@ -800,14 +1018,16 @@
       clearFlash();
       await loadStatus();
       const list = await api("/api/configs");
+      const filterVal = $("#cfgFilterEnabled").value;
+      const filtered = filterVal === "" ? list : list.filter((c) => String(c.enabled) === filterVal);
       const tb = $("#tbody");
       tb.innerHTML = "";
-      list.forEach((c) => {
+      filtered.forEach((c) => {
         const tr = document.createElement("tr");
         const nTools = c.tools?.length ?? 0;
         tr.innerHTML = `
           <td><strong>${esc(c.name)}</strong></td>
-          <td>${esc(c.protocol)}</td>
+          <td><span class="badge ${esc(c.protocol)}">${esc(c.protocol)}</span></td>
           <td>${nTools}</td>
           <td><span class="badge ${c.enabled ? "on" : "off"}">${c.enabled ? "启用" : "停用"}</span></td>
           <td style="white-space:nowrap;">
@@ -847,6 +1067,7 @@
     }
 
     $("#btnRefresh").onclick = refreshAll;
+    $("#cfgFilterEnabled").addEventListener("change", refreshAll);
 
     refreshAll().catch((e) => {
       showFlash("无法连接 API: " + e.message, true);
@@ -860,7 +1081,148 @@
         btn.classList.add("active");
         document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
         if (btn.dataset.tab === "services") loadServices();
+        if (btn.dataset.tab === "logs") loadLogs();
       });
+    });
+
+    // ── 调用日志页面 ─────────────────────────────────────
+    let logOffset = 0;
+    const logLimit = 50;
+    let _logEntries = [];
+
+    async function loadLogEnabledState() {
+      try {
+        const data = await api("/api/logs?limit=0");
+        // 通过 toggle 接口获取当前状态不可行，用 checkbox 本地状态
+      } catch (_) {}
+    }
+
+    function updateLogToggleUI(enabled) {
+      const btn = $("#logToggle");
+      const label = $("#logToggleLabel");
+      if (enabled) {
+        btn.classList.add("on");
+        label.textContent = "日志记录中";
+      } else {
+        btn.classList.remove("on");
+        label.textContent = "日志已关闭";
+      }
+    }
+
+    $("#logToggle").addEventListener("click", async () => {
+      const btn = $("#logToggle");
+      const currentlyOn = btn.classList.contains("on");
+      const newState = !currentlyOn;
+      const action = newState ? "开启" : "关闭";
+      if (!confirm(`确定要${action}日志记录吗？`)) return;
+      try {
+        await api("/api/logs/toggle", {
+          method: "POST",
+          body: JSON.stringify({ enabled: newState }),
+        });
+        updateLogToggleUI(newState);
+      } catch (_) {}
+    });
+
+    async function loadLogs() {
+      const tbody = $("#logTbody");
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);">加载中…</td></tr>';
+      const params = new URLSearchParams();
+      const protocol = $("#logFilterProtocol").value;
+      const toolName = $("#logFilterTool").value.trim();
+      const success = $("#logFilterSuccess").value;
+      const timeRange = $("#logFilterTime").value;
+      if (protocol) params.set("protocol", protocol);
+      if (toolName) params.set("tool_name", toolName);
+      if (success) params.set("success", success);
+      if (timeRange) params.set("time_range", timeRange);
+      params.set("offset", logOffset);
+      params.set("limit", logLimit);
+      try {
+        const data = await api("/api/logs?" + params.toString());
+        const entries = data.entries || [];
+        _logEntries = entries;
+        const total = data.total || 0;
+        if (!entries.length) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);">暂无日志</td></tr>';
+        } else {
+          tbody.innerHTML = entries.map((e, i) => `
+            <tr>
+              <td class="log-time">${escHtml(e.timestamp)}</td>
+              <td><span class="badge ${escHtml(e.protocol)}">${escHtml(e.protocol)}</span></td>
+              <td>${escHtml(e.tool_name)}</td>
+              <td class="log-args">${escHtml(JSON.stringify(e.arguments))}</td>
+              <td>${e.duration_ms}ms</td>
+              <td><span class="badge ${e.success ? 'ok' : 'fail'}">${e.success ? '成功' : '失败'}</span></td>
+              <td class="log-result">${escHtml(e.result_preview)}</td>
+              <td><button type="button" class="btn log-detail-btn" data-idx="${i}" style="font-size:0.78rem;padding:0.2rem 0.5rem;">详情</button></td>
+            </tr>
+          `).join("");
+        }
+        // pagination
+        const totalPages = Math.ceil(total / logLimit);
+        const currentPage = Math.floor(logOffset / logLimit) + 1;
+        $("#logPageInfo").textContent = `${currentPage} / ${totalPages || 1}`;
+        $("#btnLogPrev").disabled = logOffset <= 0;
+        $("#btnLogNext").disabled = logOffset + logLimit >= total;
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);">${escHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    $("#btnLogSearch").onclick = () => { logOffset = 0; loadLogs(); };
+    $("#btnLogRefresh").onclick = () => loadLogs();
+    $("#btnLogPrev").onclick = () => { logOffset = Math.max(0, logOffset - logLimit); loadLogs(); };
+    $("#btnLogNext").onclick = () => { logOffset += logLimit; loadLogs(); };
+    // 工具名输入即时搜索（防抖 300ms）
+    let logSearchTimer = null;
+    $("#logFilterTool").addEventListener("input", () => {
+      clearTimeout(logSearchTimer);
+      logSearchTimer = setTimeout(() => { logOffset = 0; loadLogs(); }, 300);
+    });
+    // 其他筛选条件变化时也自动查询
+    $("#logFilterProtocol").addEventListener("change", () => { logOffset = 0; loadLogs(); });
+    $("#logFilterSuccess").addEventListener("change", () => { logOffset = 0; loadLogs(); });
+    $("#logFilterTime").addEventListener("change", () => { logOffset = 0; loadLogs(); });
+    // 日志详情弹框（事件委托）
+    $("#logTbody").addEventListener("click", (e) => {
+      const btn = e.target.closest(".log-detail-btn");
+      if (!btn) return;
+      const idx = parseInt(btn.dataset.idx, 10);
+      const entry = _logEntries[idx];
+      if (!entry) return;
+      // 格式化结果
+      let resultHtml = escHtml(entry.result_preview || "");
+      try {
+        resultHtml = `<pre style="margin:0;white-space:pre-wrap;background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:0.75rem;max-height:40vh;overflow:auto;font-size:0.8rem;">${escHtml(JSON.stringify(JSON.parse(entry.result_preview), null, 2))}</pre>`;
+      } catch {
+        resultHtml = `<pre style="margin:0;white-space:pre-wrap;background:#f8fafc;border:1px solid var(--border);border-radius:6px;padding:0.75rem;max-height:40vh;overflow:auto;font-size:0.8rem;">${escHtml(entry.result_preview || "")}</pre>`;
+      }
+      // 格式化参数
+      let argsHtml = "";
+      try {
+        argsHtml = `<pre style="margin:0;white-space:pre-wrap;font-size:0.8rem;">${escHtml(JSON.stringify(entry.arguments, null, 2))}</pre>`;
+      } catch {
+        argsHtml = escHtml(JSON.stringify(entry.arguments));
+      }
+      $("#logDetailContent").innerHTML = `
+        <dl class="svc-detail-grid" style="margin-bottom:0.75rem;">
+          <dt>时间</dt><dd>${escHtml(entry.timestamp)}</dd>
+          <dt>协议</dt><dd><span class="badge ${escHtml(entry.protocol)}">${escHtml(entry.protocol)}</span></dd>
+          <dt>工具名</dt><dd>${escHtml(entry.tool_name)}</dd>
+          <dt>耗时</dt><dd>${entry.duration_ms}ms</dd>
+          <dt>状态</dt><dd><span class="badge ${entry.success ? 'ok' : 'fail'}">${entry.success ? '成功' : '失败'}</span></dd>
+          <dt>结果长度</dt><dd>${entry.result_length} 字符</dd>
+        </dl>
+        <div style="margin-bottom:0.5rem;"><strong>参数</strong></div>
+        ${argsHtml}
+        <div style="margin:0.75rem 0 0.5rem;"><strong>结果</strong></div>
+        ${resultHtml}
+      `;
+      $("#jsonOverlay").classList.add("open");
+    });
+    $("#jsonOverlay").addEventListener("click", (e) => {
+      if (e.target.id === "jsonOverlay") e.target.classList.remove("open");
     });
 
     // ── MCP 服务页面 ─────────────────────────────────────
@@ -869,17 +1231,29 @@
     }
 
     async function loadServices() {
-      const summary = $("#svcSummary");
       const list = $("#svcList");
-      summary.textContent = "加载中…";
       list.innerHTML = "";
       try {
-        const tools = await api("/api/services");
-        summary.innerHTML = `已注册 <strong>${tools.length}</strong> 个工具`;
+        const allTools = await api("/api/services");
+
+        // 筛选
+        const nameFilter = $("#svcFilterName").value.trim().toLowerCase();
+        const protocolFilter = $("#svcFilterProtocol").value;
+        const enabledFilter = $("#svcFilterEnabled").value;
+        const tools = allTools.filter((t) => {
+          if (nameFilter && !t.config_name.toLowerCase().includes(nameFilter)) return false;
+          if (protocolFilter && t.protocol !== protocolFilter) return false;
+          if (enabledFilter && String(t.config_enabled) !== enabledFilter) return false;
+          return true;
+        });
+
+        const hasFilter = nameFilter || protocolFilter || enabledFilter;
+
         if (!tools.length) {
-          list.innerHTML = '<p style="color:var(--muted);font-size:0.9rem;">暂无已注册的 MCP 工具。请先在「配置管理」中添加配置并启用。</p>';
+          list.innerHTML = `<p style="color:var(--muted);font-size:0.9rem;text-align:center;padding:2rem 0;">${hasFilter ? '没有匹配的工具' : '暂无已注册的 MCP 工具。请先在「配置管理」中添加配置并启用。'}</p>`;
           return;
         }
+
         tools.forEach((t) => {
           const card = document.createElement("div");
           card.className = "svc-card";
@@ -887,23 +1261,27 @@
           let paramsHtml = "";
           if (t.protocol === "mysql") {
             if (t.sql) detailHtml += `<dt>SQL</dt><dd><pre style="margin:0;white-space:pre-wrap;font-size:0.8rem;">${escHtml(t.sql)}</pre></dd>`;
+          } else if (t.protocol === "filesystem") {
+            if (t.operation) detailHtml += `<dt>操作</dt><dd>${escHtml(t.operation)}</dd>`;
+            if (t.path) detailHtml += `<dt>路径</dt><dd>${escHtml(t.path)}</dd>`;
           } else {
             if (t.path) detailHtml += `<dt>Path</dt><dd>${escHtml(t.method)} ${escHtml(t.path)}</dd>`;
           }
-          // 参数配置对 MySQL 和 HTTP 都显示
           paramsHtml = t.params && t.params.length
-            ? `<div class="svc-params"><table><thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>默认值</th></tr></thead><tbody>${
-                t.params.map((p) => `<tr><td><code>${escHtml(p.name)}</code></td><td>${escHtml(p.type)}</td><td>${p.required ? "是" : "否"}</td><td>${escHtml(p.default ?? "—")}</td></tr>`).join("")
+            ? `<div class="svc-params"><table><thead><tr><th>参数名</th><th>类型</th><th>必填</th><th>描述</th><th>默认值</th></tr></thead><tbody>${
+                t.params.map((p) => `<tr><td><code>${escHtml(p.name)}</code></td><td>${escHtml(p.type)}</td><td>${p.required ? "是" : "否"}</td><td>${escHtml(p.description || "—")}</td><td>${escHtml(p.default ?? "—")}</td></tr>`).join("")
               }</tbody></table></div>`
             : '<p style="color:var(--muted);font-size:0.8rem;margin:0.5rem 0 0;">无参数</p>';
 
-
+          const statusClass = t.config_enabled ? "" : " off";
           card.innerHTML = `
             <div class="svc-card-head">
               <div class="left">
-                <span class="badge ${t.protocol === "mysql" ? "on" : ""}">${escHtml(t.protocol)}</span>
+                <span class="status-dot${statusClass}" title="${t.config_enabled ? '已启用' : '已停用'}"></span>
+                <span class="badge ${escHtml(t.protocol)}">${escHtml(t.protocol)}</span>
                 <span class="name">${escHtml(t.full_name)}</span>
-                <span class="desc">${escHtml(t.description)}</span>
+                <span class="config-tag" title="所属配置">${escHtml(t.config_name)}</span>
+                ${t.description ? `<span class="desc">— ${escHtml(t.description)}</span>` : ""}
               </div>
               <span class="arrow">▸</span>
             </div>
@@ -917,12 +1295,19 @@
           list.appendChild(card);
         });
       } catch (e) {
-        summary.textContent = "加载失败";
         list.innerHTML = `<p style="color:var(--danger);font-size:0.9rem;">${escHtml(e.message)}</p>`;
       }
     }
 
     $("#btnRefreshSvc").addEventListener("click", loadServices);
+    $("#svcFilterProtocol").addEventListener("change", loadServices);
+    $("#svcFilterEnabled").addEventListener("change", loadServices);
+    // 配置名称即时搜索
+    let svcSearchTimer = null;
+    $("#svcFilterName").addEventListener("input", () => {
+      clearTimeout(svcSearchTimer);
+      svcSearchTimer = setTimeout(loadServices, 300);
+    });
   </script>
 </body>
 </html>

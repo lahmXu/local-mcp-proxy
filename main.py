@@ -15,8 +15,10 @@ from pathlib import Path
 from models import ConfigStorage
 from proxy_server import MCPProxyManager
 from web_app import create_app
+from call_logger import CallLogger
+from adapters import set_call_logger
 
-logger = logging.getLogger("mcp-proxy")
+logger = logging.getLogger("local-mcp-proxy")
 
 
 def resolve_config_dir(cli_dir: str | None) -> Path:
@@ -32,7 +34,7 @@ def resolve_config_dir(cli_dir: str | None) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="基于 FastMCP 的本地 MCP 代理（MySQL/HTTP 转发 + Web 配置）",
+        description="基于 FastMCP 的本地 MCP 代理（MySQL/HTTP/文件系统 转发 + Web 配置）",
     )
     parser.add_argument(
         "--config-dir",
@@ -81,8 +83,11 @@ def main() -> None:
 
     config_dir = resolve_config_dir(args.config_dir)
     storage = ConfigStorage(config_dir=config_dir)
+    log_dir = config_dir.parent / "logs"
+    call_logger = CallLogger(log_dir)
+    set_call_logger(call_logger)
     manager = MCPProxyManager(storage)
-    app = create_app(storage, manager)
+    app = create_app(storage, manager, call_logger)
 
     def run_flask() -> None:
         app.run(
@@ -96,11 +101,11 @@ def main() -> None:
         threading.Thread(target=run_flask, daemon=True).start()
         print("", file=sys.stderr)
         print("=" * 50, file=sys.stderr)
-        print("[mcp-proxy] 服务已启动 (stdio 模式)", file=sys.stderr)
+        print("[local-mcp-proxy] 服务已启动 (stdio 模式)", file=sys.stderr)
         print("=" * 50, file=sys.stderr)
         print(f"  配置页面:   http://{args.web_host}:{args.web_port}", file=sys.stderr)
         print(f"  配置文件:   {config_dir / 'mcp_configs.json'}", file=sys.stderr)
-        print(f"  登录配置:   {config_dir / 'login_configs.json'}", file=sys.stderr)
+        print(f"  代理配置:   {config_dir / 'proxy_configs.json'}", file=sys.stderr)
         print("=" * 50, file=sys.stderr)
         print("", file=sys.stderr)
         manager.run(transport="stdio")
@@ -108,12 +113,12 @@ def main() -> None:
         threading.Thread(target=run_flask, daemon=True).start()
         print("", file=sys.stderr)
         print("=" * 50, file=sys.stderr)
-        print("[mcp-proxy] 服务已启动 (streamable-http 模式)", file=sys.stderr)
+        print("[local-mcp-proxy] 服务已启动 (streamable-http 模式)", file=sys.stderr)
         print("=" * 50, file=sys.stderr)
         print(f"  MCP 地址:   http://{args.mcp_host}:{args.mcp_port}/mcp", file=sys.stderr)
         print(f"  配置页面:   http://{args.web_host}:{args.web_port}", file=sys.stderr)
         print(f"  配置文件:   {config_dir / 'mcp_configs.json'}", file=sys.stderr)
-        print(f"  登录配置:   {config_dir / 'login_configs.json'}", file=sys.stderr)
+        print(f"  代理配置:   {config_dir / 'proxy_configs.json'}", file=sys.stderr)
         print("=" * 50, file=sys.stderr)
         print("", file=sys.stderr)
         manager.run(

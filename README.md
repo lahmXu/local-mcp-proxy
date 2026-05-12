@@ -1,6 +1,6 @@
-# mcp-proxy
+# local-mcp-proxy
 
-一个基于 [FastMCP](https://github.com/jlowin/fastmcp) 的本地 MCP 代理服务，用于统一转发 MySQL 和 HTTP 数据源的工具调用。
+一个基于 [FastMCP](https://github.com/jlowin/fastmcp) 的本地 MCP 代理服务，用于统一转发 MySQL/HTTP/文件系统数据源的工具调用。
 
 ## 特性
 
@@ -47,7 +47,7 @@ python main.py --mcp-transport stdio
 ```json
 {
   "mcpServers": {
-    "mcp-proxy": {
+    "local-mcp-proxy": {
       "url": "http://localhost:9210/mcp"
     }
   }
@@ -59,7 +59,7 @@ python main.py --mcp-transport stdio
 ```json
 {
   "mcpServers": {
-    "mcp-proxy": {
+    "local-mcp-proxy": {
       "command": "python",
       "args": ["/path/to/main.py", "--mcp-transport", "stdio"]
     }
@@ -100,3 +100,8 @@ python main.py --mcp-transport stdio
 │   └── mcp_configs.json # 工具配置文件（自动生成）
 └── requirements.txt     # Python 依赖
 ```
+
+
+### 如何使用
+claude mcp add --transport http local-mcp-proxy http://127.0.0.1:9210/mcp
+claude mcp add --scope user --transport http local-mcp-proxy http://127.0.0.1:9210/mcp

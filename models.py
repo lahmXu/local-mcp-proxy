@@ -10,6 +10,7 @@ from pathlib import Path
 class ProtocolType(str, Enum):
     MYSQL = "mysql"
     HTTP = "http"
+    FILESYSTEM = "filesystem"
 
 
 @dataclass
@@ -61,6 +62,20 @@ class HTTPConfig:
 
 
 @dataclass
+class FilesystemConfig:
+    root_dir: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "FilesystemConfig":
+        return cls(
+            root_dir=data.get("root_dir", ""),
+        )
+
+
+@dataclass
 class ToolParam:
     name: str
     type: str = "string"
@@ -87,11 +102,12 @@ class ToolConfig:
     name: str
     description: str = ""
     sql: str = ""  # MySQL tool: SQL template
-    path: str = ""  # HTTP tool: URL path
+    path: str = ""  # HTTP tool: URL path / Filesystem: relative path
     method: str = "GET"  # HTTP tool: HTTP method
     params: List[ToolParam] = field(default_factory=list)
     enabled: bool = True
     format: str = "json"  # MySQL tool: "text" | "json"
+    operation: str = ""  # Filesystem: read_file | list_directory
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -109,6 +125,7 @@ class ToolConfig:
             params=params,
             enabled=data.get("enabled", True),
             format=data.get("format", "json"),
+            operation=data.get("operation", ""),
         )
 
 
@@ -138,8 +155,10 @@ class MCPConfig:
         if pc:
             if protocol == ProtocolType.MYSQL:
                 pc = MySQLConfig.from_dict(pc)
-            else:
+            elif protocol == ProtocolType.HTTP:
                 pc = HTTPConfig.from_dict(pc)
+            elif protocol == ProtocolType.FILESYSTEM:
+                pc = FilesystemConfig.from_dict(pc)
         tools = [ToolConfig.from_dict(t) for t in data.get("tools", [])]
         return cls(
             id=data.get("id", ""),

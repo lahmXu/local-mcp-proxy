@@ -10,7 +10,7 @@ from fastmcp.tools import FunctionTool
 from models import ConfigStorage, ToolConfig
 from adapters import execute_tool
 
-logger = logging.getLogger("mcp-proxy")
+logger = logging.getLogger("local-mcp-proxy")
 
 
 class MCPProxyManager:
@@ -27,8 +27,8 @@ class MCPProxyManager:
         """根据当前配置重建工具注册"""
         if self.mcp is None:
             self.mcp = FastMCP(
-                "mcp-proxy",
-                instructions="MCP 代理服务：统一转发 MySQL/HTTP 数据源的工具调用",
+                "local-mcp-proxy",
+                instructions="MCP 代理服务：统一转发 MySQL/HTTP/文件系统数据源的工具调用",
             )
         else:
             # 复用已有实例，清空旧工具
@@ -94,7 +94,7 @@ class MCPProxyManager:
             "_execute_tool": execute_tool,
             "_tool_cfg": tool_cfg,
         }
-        exec(compile(src, "<mcp-proxy-tool>", "exec"), ns)
+        exec(compile(src, "<local-mcp-proxy-tool>", "exec"), ns)
         fn: Callable = ns["_tool_impl"]
         safe_py = re.sub(r"[^a-zA-Z0-9_]", "_", full_name)
         if not safe_py or not (safe_py[0].isalpha() or safe_py[0] == "_"):
@@ -130,6 +130,7 @@ class MCPProxyManager:
                 "full_name": full_name,
                 "config_name": cfg.name if cfg else "",
                 "config_id": cfg_id,
+                "config_enabled": cfg.enabled if cfg else False,
                 "protocol": cfg.protocol.value if cfg else "",
                 "tool_name": tool_cfg.name,
                 "description": tool_cfg.description or "",
@@ -146,6 +147,7 @@ class MCPProxyManager:
                 "path": tool_cfg.path or "",
                 "method": tool_cfg.method or "GET",
                 "format": tool_cfg.format or "json",
+                "operation": tool_cfg.operation or "",
             })
         return result
 
