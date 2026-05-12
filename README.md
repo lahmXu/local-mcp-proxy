@@ -10,6 +10,16 @@
 - 提供 Web 管理界面，可视化管理工具配置
 - 支持 streamable-http 和 stdio 两种传输模式
 
+## 界面预览
+
+![登录页面](screenshots/login.png)
+
+![配置管理](screenshots/config.png)
+
+![MCP 工具列表](screenshots/mcp_list.png)
+
+![运行日志](screenshots/log.png)
+
 ## 下载安装
 
 从 [Releases](https://github.com/lahmXu/local-mcp-proxy/releases) 页面下载压缩包：
