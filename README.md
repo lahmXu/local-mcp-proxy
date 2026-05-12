@@ -12,13 +12,13 @@
 
 ## 界面预览
 
-![登录页面](screenshots/login.png)
+![登录页面](release/screenshot/login.png)
 
-![配置管理](screenshots/config.png)
+![配置管理](release/screenshot/config.png)
 
-![MCP 工具列表](screenshots/mcp_list.png)
+![MCP 工具列表](release/screenshot/mcp_list.png)
 
-![运行日志](screenshots/log.png)
+![运行日志](release/screenshot/log.png)
 
 ## 下载安装
 
