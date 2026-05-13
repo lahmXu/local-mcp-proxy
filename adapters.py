@@ -47,7 +47,7 @@ def _get_mysql_pool(cfg: MySQLConfig) -> mysql.connector.pooling.MySQLConnection
         _mysql_pools[key] = mysql.connector.pooling.MySQLConnectionPool(
             pool_name=safe_pool,
             pool_size=3,
-            pool_reset_session=True,
+            pool_reset_session=False,
             host=cfg.host,
             port=cfg.port,
             user=cfg.user,
