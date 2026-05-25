@@ -7,6 +7,9 @@ from enum import Enum
 from pathlib import Path
 
 
+_INTERNAL_METADATA_KEY = "_mcp_proxy_meta"
+
+
 class ProtocolType(str, Enum):
     MYSQL = "mysql"
     HTTP = "http"
@@ -176,6 +179,7 @@ class ConfigStorage:
         self.config_file = self.config_dir / "mcp_configs.json"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self._configs: Dict[str, MCPConfig] = {}
+        self._metadata: Dict[str, Any] = {}
         self._load()
 
     def _load(self):
@@ -183,17 +187,25 @@ class ConfigStorage:
             try:
                 with open(self.config_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                metadata = data.get(_INTERNAL_METADATA_KEY, {})
+                self._metadata = metadata if isinstance(metadata, dict) else {}
                 self._configs = {
-                    cid: MCPConfig.from_dict(cd) for cid, cd in data.items()
+                    cid: MCPConfig.from_dict(cd)
+                    for cid, cd in data.items()
+                    if cid != _INTERNAL_METADATA_KEY
                 }
             except Exception as e:
                 print(f"加载配置失败: {e}")
                 self._configs = {}
+                self._metadata = {}
 
     def _save(self):
+        payload = {cid: c.to_dict() for cid, c in self._configs.items()}
+        if self._metadata:
+            payload[_INTERNAL_METADATA_KEY] = self._metadata
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(
-                {cid: c.to_dict() for cid, c in self._configs.items()},
+                payload,
                 f,
                 indent=2,
                 ensure_ascii=False,
@@ -228,6 +240,18 @@ class ConfigStorage:
 
     def list_enabled(self) -> List[MCPConfig]:
         return [c for c in self._configs.values() if c.enabled]
+
+    def get_runtime_metadata(self, key: str) -> Any:
+        return self._metadata.get(key)
+
+    def set_runtime_metadata(self, key: str, value: Any) -> None:
+        self._metadata[key] = value
+        self._save()
+
+    def clear_runtime_metadata(self, key: str) -> None:
+        if key in self._metadata:
+            del self._metadata[key]
+            self._save()
 
     @staticmethod
     def new_id() -> str:

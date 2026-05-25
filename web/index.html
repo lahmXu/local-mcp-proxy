@@ -216,12 +216,48 @@
     .tool-card {
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 0.75rem;
       margin-bottom: 0.75rem;
       background: var(--panel);
+      overflow: hidden;
     }
-    .tool-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-    .tool-head span { font-weight: 600; font-size: 0.9rem; }
+    .tool-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 0.75rem;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+    }
+    .tool-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      padding: 0;
+      color: var(--text);
+      font-weight: 600;
+      font-size: 0.9rem;
+      box-shadow: none;
+    }
+    .tool-title:hover { box-shadow: none; color: var(--accent); }
+    .tool-caret {
+      display: inline-block;
+      color: var(--muted);
+      transition: transform 0.15s ease;
+    }
+    .tool-card.collapsed .tool-caret { transform: rotate(-90deg); }
+    .tool-summary {
+      color: var(--muted);
+      font-weight: 400;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .tool-body { padding: 0.75rem; }
+    .tool-card.collapsed .tool-body { display: none; }
     .param-row {
       display: grid;
       grid-template-columns: 1fr 80px 60px 1fr 1fr 32px;
@@ -479,7 +515,7 @@
     <div class="tab-panel" id="tab-services">
       <div class="toolbar" style="gap:0.5rem;">
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
-          <input id="svcFilterName" placeholder="配置名称搜索" style="width:160px;padding:0.4rem 0.6rem;" />
+          <input id="svcFilterName" placeholder="配置/工具搜索" style="width:160px;padding:0.4rem 0.6rem;" />
           <div class="select-wrap" style="width:auto;"><select id="svcFilterProtocol">
             <option value="">全部协议</option>
             <option value="mysql">mysql</option>
@@ -488,7 +524,7 @@
           </select></div>
           <div class="select-wrap" style="width:auto;"><select id="svcFilterEnabled">
             <option value="">全部状态</option>
-            <option value="true">已启用</option>
+            <option value="true" selected>已启用</option>
             <option value="false">已停用</option>
           </select></div>
         </div>
@@ -724,6 +760,43 @@
       };
     }
 
+    function defaultMysqlTool() {
+      return {
+        name: "query",
+        description: "查询数据和表结构",
+        sql: ":sql",
+        path: "",
+        method: "GET",
+        params: [
+          {
+            name: "sql",
+            type: "string",
+            description: "sql语句",
+            required: true,
+            default: null,
+          },
+        ],
+        enabled: true,
+        format: "json",
+        operation: "",
+      };
+    }
+
+    function isBlankTool(tool) {
+      return !tool.name && !tool.description && !tool.sql && !tool.path && !(tool.params || []).length && !tool.operation;
+    }
+
+    function applyProtocolDefaultTools() {
+      if (editingId || $("#f_protocol").value !== "mysql") return;
+      const tools = readToolsFromDom();
+      if (tools.length === 1 && isBlankTool(tools[0])) {
+        const tb = $("#toolsBox");
+        tb.innerHTML = "";
+        tb.appendChild(renderToolCard(defaultMysqlTool(), 0, false));
+        syncProtocolBoxes();
+      }
+    }
+
     function syncProtocolBoxes() {
       const p = $("#f_protocol").value;
       $("#box_mysql").style.display = p === "mysql" ? "block" : "none";
@@ -742,11 +815,25 @@
       });
     }
 
-    $("#f_protocol").addEventListener("change", syncProtocolBoxes);
+    $("#f_protocol").addEventListener("change", () => {
+      applyProtocolDefaultTools();
+      syncProtocolBoxes();
+    });
 
-    function renderToolCard(t, idx) {
+    function toolSummaryText(card) {
+      const name = card.querySelector('[data-t="name"]')?.value?.trim() || "未命名";
+      const enabled = card.querySelector('[data-t="en"]')?.value !== "false";
+      return `${name} · ${enabled ? "启用" : "停用"}`;
+    }
+
+    function refreshToolSummary(card) {
+      const summary = card.querySelector(".tool-summary");
+      if (summary) summary.textContent = toolSummaryText(card);
+    }
+
+    function renderToolCard(t, idx, collapsed = false) {
       const div = document.createElement("div");
-      div.className = "tool-card";
+      div.className = `tool-card${collapsed ? " collapsed" : ""}`;
       const ps = (t.params || []).map(
         (p, i) => `
         <div class="param-row" data-pi="${i}">
@@ -767,58 +854,71 @@
       ).join("");
       div.innerHTML = `
         <div class="tool-head">
-          <span>工具 #${idx + 1}</span>
+          <button type="button" class="tool-title" title="展开/收起工具配置">
+            <span class="tool-caret">▾</span>
+            <span class="tool-index">工具 #${idx + 1}</span>
+            <span class="tool-summary"></span>
+          </button>
           <button type="button" class="danger rm-tool">删除工具</button>
         </div>
-        <div class="row">
-          <div><label>工具名 name</label><input data-t="name" value="${esc(t.name)}" /></div>
-          <div><label>启用</label><div class="select-wrap"><select data-t="en">
-            <option value="true" ${t.enabled !== false ? "selected" : ""}>是</option>
-            <option value="false" ${t.enabled === false ? "selected" : ""}>否</option>
-          </select></div></div>
-        </div>
-        <label>描述 description</label>
-        <input data-t="desc" value="${esc(t.description || "")}" />
-        <div class="sql-block">
-          <label>SQL（MySQL）</label>
-          <textarea data-t="sql" placeholder="SELECT * FROM users WHERE id = :id（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）">${esc(t.sql || "")}</textarea>
-          <div class="row" style="margin-top:0.5rem">
-            <div><label>返回格式</label>
-              <div class="select-wrap"><select data-t="format">
-                <option value="json" ${(t.format || "json") === "json" ? "selected" : ""}>JSON</option>
-                <option value="text" ${t.format === "text" ? "selected" : ""}>Text</option>
-              </select></div></div>
-          </div>
-        </div>
-        <div class="http-block">
+        <div class="tool-body">
           <div class="row">
-            <div><label>path（HTTP）</label><input data-t="path" value="${esc(t.path || "")}" placeholder="v1/items/{id}（{name} 为路径参数，GET 走 query，POST 走 body）" /></div>
-            <div><label>method</label>
-              <div class="select-wrap"><select data-t="method">
-                ${["GET","POST","PUT","PATCH","DELETE"].map(
-                  (m) => `<option value="${m}" ${(t.method || "GET") === m ? "selected" : ""}>${m}</option>`
-                ).join("")}
-              </select></div>
+            <div><label>工具名 name</label><input data-t="name" value="${esc(t.name)}" /></div>
+            <div><label>启用</label><div class="select-wrap"><select data-t="en">
+              <option value="true" ${t.enabled !== false ? "selected" : ""}>是</option>
+              <option value="false" ${t.enabled === false ? "selected" : ""}>否</option>
+            </select></div></div>
+          </div>
+          <label>描述 description</label>
+          <input data-t="desc" value="${esc(t.description || "")}" />
+          <div class="sql-block">
+            <label>SQL（MySQL）</label>
+            <textarea data-t="sql" placeholder="SELECT * FROM users WHERE id = :id（仅允许 SELECT/SHOW/DESCRIBE/EXPLAIN）">${esc(t.sql || "")}</textarea>
+            <div class="row" style="margin-top:0.5rem">
+              <div><label>返回格式</label>
+                <div class="select-wrap"><select data-t="format">
+                  <option value="json" ${(t.format || "json") === "json" ? "selected" : ""}>JSON</option>
+                  <option value="text" ${t.format === "text" ? "selected" : ""}>Text</option>
+                </select></div></div>
             </div>
           </div>
-        </div>
-        <div class="fs-block">
-          <label>操作类型（文件系统）</label>
-          <div class="select-wrap"><select data-t="operation">
-            <option value="" ${!t.operation ? "selected" : ""}>请选择</option>
-            <option value="read_file" ${t.operation === "read_file" ? "selected" : ""}>读取文件</option>
-            <option value="list_directory" ${t.operation === "list_directory" ? "selected" : ""}>列举目录</option>
-          </select></div>
-          <div class="row" style="margin-top:0.5rem">
-            <div><label>相对路径 path（可选）</label><input data-t="fs_path" value="${esc(t.path || "")}" placeholder="subdir/file.txt（相对于根目录）" /></div>
+          <div class="http-block">
+            <div class="row">
+              <div><label>path（HTTP）</label><input data-t="path" value="${esc(t.path || "")}" placeholder="v1/items/{id}（{name} 为路径参数，GET 走 query，POST 走 body）" /></div>
+              <div><label>method</label>
+                <div class="select-wrap"><select data-t="method">
+                  ${["GET","POST","PUT","PATCH","DELETE"].map(
+                    (m) => `<option value="${m}" ${(t.method || "GET") === m ? "selected" : ""}>${m}</option>`
+                  ).join("")}
+                </select></div>
+              </div>
+            </div>
+          </div>
+          <div class="fs-block">
+            <label>操作类型（文件系统）</label>
+            <div class="select-wrap"><select data-t="operation">
+              <option value="" ${!t.operation ? "selected" : ""}>请选择</option>
+              <option value="read_file" ${t.operation === "read_file" ? "selected" : ""}>读取文件</option>
+              <option value="list_directory" ${t.operation === "list_directory" ? "selected" : ""}>列举目录</option>
+            </select></div>
+            <div class="row" style="margin-top:0.5rem">
+              <div><label>相对路径 path（可选）</label><input data-t="fs_path" value="${esc(t.path || "")}" placeholder="subdir/file.txt（相对于根目录）" /></div>
+            </div>
+          </div>
+          <div class="params-block">
+            <label>参数 params</label>
+            ${ps || "<code>无参数</code>"}
+            <button type="button" class="btn add-p" style="margin-top:0.35rem;">+ 参数</button>
           </div>
         </div>
-        <div class="params-block">
-          <label>参数 params</label>
-          ${ps || "<code>无参数</code>"}
-          <button type="button" class="btn add-p" style="margin-top:0.35rem;">+ 参数</button>
-        </div>
       `;
+      div.querySelector(".tool-title").onclick = () => {
+        div.classList.toggle("collapsed");
+      };
+      div.querySelectorAll('[data-t="name"], [data-t="en"]').forEach((el) => {
+        el.addEventListener("input", () => refreshToolSummary(div));
+        el.addEventListener("change", () => refreshToolSummary(div));
+      });
       div.querySelector(".rm-tool").onclick = () => {
         div.remove();
         reindexTools();
@@ -847,12 +947,14 @@
         row.querySelector(".rm-p").onclick = () => row.remove();
         div.querySelector(".add-p").before(row);
       };
+      refreshToolSummary(div);
       return div;
     }
 
     function reindexTools() {
       $("#toolsBox").querySelectorAll(".tool-card").forEach((c, i) => {
-        c.querySelector(".tool-head span").textContent = "工具 #" + (i + 1);
+        c.querySelector(".tool-index").textContent = "工具 #" + (i + 1);
+        refreshToolSummary(c);
       });
     }
 
@@ -920,7 +1022,7 @@
       const tb = $("#toolsBox");
       tb.innerHTML = "";
       const tools = (cfg?.tools && cfg.tools.length) ? cfg.tools : [emptyTool()];
-      tools.forEach((t, i) => tb.appendChild(renderToolCard({ ...emptyTool(), ...t }, i)));
+      tools.forEach((t, i) => tb.appendChild(renderToolCard({ ...emptyTool(), ...t }, i, Boolean(cfg))));
 
       syncProtocolBoxes();
       $("#overlay").classList.add("open");
@@ -977,7 +1079,7 @@
     };
     $("#btnAddTool").onclick = () => {
       const n = $("#toolsBox").querySelectorAll(".tool-card").length;
-      $("#toolsBox").appendChild(renderToolCard(emptyTool(), n));
+      $("#toolsBox").appendChild(renderToolCard(emptyTool(), n, false));
       syncProtocolBoxes();
     };
     $("#btnCancel").onclick = () => $("#overlay").classList.remove("open");
@@ -1241,9 +1343,15 @@
         const protocolFilter = $("#svcFilterProtocol").value;
         const enabledFilter = $("#svcFilterEnabled").value;
         const tools = allTools.filter((t) => {
-          if (nameFilter && !t.config_name.toLowerCase().includes(nameFilter)) return false;
+          const haystack = [
+            t.config_name,
+            t.tool_name,
+            t.full_name,
+            t.description,
+          ].map((x) => String(x || "").toLowerCase()).join(" ");
+          if (nameFilter && !haystack.includes(nameFilter)) return false;
           if (protocolFilter && t.protocol !== protocolFilter) return false;
-          if (enabledFilter && String(t.config_enabled) !== enabledFilter) return false;
+          if (enabledFilter && String(t.enabled) !== enabledFilter) return false;
           return true;
         });
 
@@ -1273,14 +1381,17 @@
               }</tbody></table></div>`
             : '<p style="color:var(--muted);font-size:0.8rem;margin:0.5rem 0 0;">无参数</p>';
 
-          const statusClass = t.config_enabled ? "" : " off";
+          const statusClass = t.enabled ? "" : " off";
+          const statusTitle = t.enabled ? (t.registered ? "已注册" : "待注册") : "已停用";
           card.innerHTML = `
             <div class="svc-card-head">
               <div class="left">
-                <span class="status-dot${statusClass}" title="${t.config_enabled ? '已启用' : '已停用'}"></span>
+                <span class="status-dot${statusClass}" title="${statusTitle}"></span>
                 <span class="badge ${escHtml(t.protocol)}">${escHtml(t.protocol)}</span>
                 <span class="name">${escHtml(t.full_name)}</span>
                 <span class="config-tag" title="所属配置">${escHtml(t.config_name)}</span>
+                ${t.tool_enabled === false ? `<span class="badge off">工具停用</span>` : ""}
+                ${t.config_enabled === false ? `<span class="badge off">配置停用</span>` : ""}
                 ${t.description ? `<span class="desc">— ${escHtml(t.description)}</span>` : ""}
               </div>
               <span class="arrow">▸</span>
