@@ -35,15 +35,15 @@
 解压后进入目录：
 
 ```bash
-unzip dist-v0.0.2-darwin-arm64.zip
-cd dist-v0.0.2-darwin-arm64
+unzip dist-darwin-arm64.zip
+cd dist-darwin-arm64
 chmod +x local-mcp-proxy start.sh stop.sh
 ```
 
 目录结构：
 
 ```
-dist-v0.0.2-darwin-arm64/
+dist-darwin-arm64/
 ├── local-mcp-proxy        # 可执行文件
 ├── start.sh               # 启动脚本
 ├── stop.sh                # 停止脚本
