@@ -7,8 +7,10 @@
 - 通过配置动态注册 MCP 工具，无需编写代码
 - 支持 MySQL 只读查询（SELECT/SHOW/DESCRIBE/EXPLAIN）
 - 支持 HTTP API 请求转发
+- 支持文件系统操作（读取文件、列举目录）
 - 提供 Web 管理界面，可视化管理工具配置
 - 支持 streamable-http 和 stdio 两种传输模式
+- 配置热重载，已连接客户端自动同步工具列表
 
 ## 界面预览
 
@@ -22,29 +24,31 @@
 
 ## 下载安装
 
-从 [Releases](https://github.com/lahmXu/local-mcp-proxy/releases) 页面下载压缩包：
+从 [Releases](https://github.com/lahmXu/local-mcp-proxy/releases) 页面下载对应平台的安装包：
 
-| 平台 | 文件名 |
-|------|--------|
-| macOS (Apple Silicon) | `dist-v0.0.1-darwin-arm64.zip` |
+### macOS .pkg 安装包（推荐）
+
+下载 `.pkg` 文件，双击安装即可。安装后可在启动台或菜单栏中找到 Local MCP Proxy。
+
+### ZIP 压缩包（便携版）
 
 解压后进入目录：
 
 ```bash
-unzip dist-v0.0.1-darwin-arm64.zip
-cd dist-v0.0.1-darwin-arm64
+unzip dist-v0.0.2-darwin-arm64.zip
+cd dist-v0.0.2-darwin-arm64
 chmod +x local-mcp-proxy start.sh stop.sh
 ```
 
 目录结构：
 
 ```
-dist-v0.0.1-darwin-arm64/
+dist-v0.0.2-darwin-arm64/
 ├── local-mcp-proxy        # 可执行文件
 ├── start.sh               # 启动脚本
 ├── stop.sh                # 停止脚本
 ├── configs/
-│   └── proxy_configs.json # 配置文件（首次启动自动生成）
+│   └── mcp_configs.json   # 配置文件（首次启动自动生成）
 └── logs/
     └── server.log         # 日志（启动后自动生成）
 ```
@@ -109,9 +113,9 @@ claude mcp add --scope user --transport http local-mcp-proxy http://127.0.0.1:92
 
 Web 界面提供：
 - MCP 配置的增删改查
-- 工具定义管理（参数、SQL/HTTP 配置）
+- 工具定义管理（参数、SQL/HTTP 配置，可折叠卡片式编辑）
 - 连接测试（MySQL/HTTP）
-- 服务状态监控
+- 服务状态监控（支持按配置名/工具名搜索）
 - 默认用户名/密码: admin/admin123
 
 ## 命令行参数
@@ -144,14 +148,14 @@ Web 界面提供：
 
 ## 从源码构建
 
-如需自行构建可执行文件，参见下方说明。
+如需自行构建，参见下方说明。
 
 ### 环境要求
 
 - Python 3.10+
 - Conda（推荐）
 
-### 构建步骤
+### 运行与打包
 
 ```bash
 # 创建并激活 Conda 环境
@@ -164,22 +168,39 @@ pip install -r requirements.txt
 # 直接运行
 python main.py
 
-# 打包为可执行文件
-./scripts/build.sh
+# 打包为可执行文件（生成 dist 目录）
+./scripts/build.sh [版本号]
+
+# 生成 macOS .pkg 安装包（依赖上一步的 dist 目录）
+./scripts/build_pkg.sh [版本号]
 ```
+
+### 构建脚本说明
+
+| 脚本 | 用途 |
+|------|------|
+| `scripts/build.sh` | PyInstaller 打包为单文件可执行程序 |
+| `scripts/build_pkg.sh` | 将 dist 目录打包为 macOS .pkg 安装包（含 .app Bundle、菜单栏图标、开机自启） |
 
 ## 项目结构
 
 ```
 ├── main.py              # 入口：解析参数，启动 MCP + Web 服务
-├── proxy_server.py      # MCP 代理核心：动态注册工具到 FastMCP
-├── adapters.py          # 协议适配器：MySQL 和 HTTP 执行逻辑
-├── models.py            # 数据模型：配置定义 + JSON 文件存储
+├── proxy_server.py      # MCP 代理核心：动态注册工具、客户端版本同步
+├── adapters.py          # 协议适配器：MySQL / HTTP / 文件系统执行逻辑
+├── models.py            # 数据模型：配置定义 + JSON 文件存储 + 运行时元数据
 ├── config.py            # MySQL 全局配置（从环境变量加载）
 ├── web_app.py           # Flask Web 管理界面 + REST API
 ├── web/
 │   └── index.html       # 前端单页应用
 ├── configs/
 │   └── mcp_configs.json # 工具配置文件（自动生成）
+├── tests/               # 单元测试
+├── scripts/
+│   ├── build.sh         # PyInstaller 打包脚本
+│   ├── build_pkg.sh     # macOS PKG 安装包构建脚本
+│   ├── start.sh         # 启动脚本
+│   ├── stop.sh          # 停止脚本
+│   └── install.sh       # 依赖安装脚本
 └── requirements.txt     # Python 依赖
 ```
