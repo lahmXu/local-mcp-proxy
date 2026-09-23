@@ -49,6 +49,7 @@ bash "$SCRIPT_DIR/build.sh" "$VERSION"
 
 for required_path in \
     "$DIST_DIR/$APP_NAME" \
+    "$DIST_DIR/VERSION" \
     "$DIST_DIR/configs"
 do
     if [ ! -e "$required_path" ]; then
@@ -66,6 +67,7 @@ mkdir -p \
     "$PKG_SCRIPTS_DIR"
 
 cp "$DIST_DIR/$APP_NAME" "$APP_BUNDLE_DIR/Contents/Resources/"
+cp "$DIST_DIR/VERSION" "$APP_BUNDLE_DIR/Contents/Resources/"
 cp -R "$DIST_DIR/configs/." "$APP_BUNDLE_DIR/Contents/Resources/configs/"
 chmod +x "$APP_BUNDLE_DIR/Contents/Resources/$APP_NAME"
 

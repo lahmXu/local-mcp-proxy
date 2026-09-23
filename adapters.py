@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -37,24 +38,62 @@ def _json_value(v: Any, is_json_col: bool = False) -> Any:
 
 # ── MySQL 适配器 ──────────────────────────────────────────
 
-_mysql_pools: Dict[str, mysql.connector.pooling.MySQLConnectionPool] = {}
+_mysql_pools: Dict[
+    str, tuple[str, mysql.connector.pooling.MySQLConnectionPool]
+] = {}
+_mysql_pools_lock = threading.Lock()
 
 
-def _get_mysql_pool(cfg: MySQLConfig) -> mysql.connector.pooling.MySQLConnectionPool:
-    key = f"{cfg.host}:{cfg.port}/{cfg.database}"
-    if key not in _mysql_pools:
-        safe_pool = "p" + hashlib.md5(key.encode("utf-8")).hexdigest()[:24]
-        _mysql_pools[key] = mysql.connector.pooling.MySQLConnectionPool(
+def build_mysql_connection_settings(
+    cfg: MySQLConfig,
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """构造连接与连接池参数；基础字段始终由专用配置项控制。"""
+    options = dict(cfg.advanced_options or {})
+    pool_options = {
+        "pool_size": options.pop("pool_size", 3),
+        "pool_reset_session": options.pop("pool_reset_session", True),
+    }
+    # pool_name 由程序生成，基础字段不允许被高级选项覆盖。
+    options.pop("pool_name", None)
+    options.update({
+        "host": cfg.host,
+        "port": cfg.port,
+        "user": cfg.user,
+        "password": cfg.password,
+        "database": cfg.database,
+    })
+    return options, pool_options
+
+
+def _get_mysql_pool(
+    mcp_config: MCPConfig,
+) -> mysql.connector.pooling.MySQLConnectionPool:
+    cfg: MySQLConfig = mcp_config.protocol_config
+    connection_options, pool_options = build_mysql_connection_settings(cfg)
+    fingerprint_source = json.dumps(
+        {"connection": connection_options, "pool": pool_options},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    fingerprint = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
+    key = mcp_config.id
+
+    with _mysql_pools_lock:
+        cached = _mysql_pools.get(key)
+        if cached and cached[0] == fingerprint:
+            return cached[1]
+
+        safe_pool = "p" + hashlib.md5(
+            f"{key}:{fingerprint}".encode("utf-8")
+        ).hexdigest()[:24]
+        pool = mysql.connector.pooling.MySQLConnectionPool(
             pool_name=safe_pool,
-            pool_size=3,
-            pool_reset_session=False,
-            host=cfg.host,
-            port=cfg.port,
-            user=cfg.user,
-            password=cfg.password,
-            database=cfg.database,
+            **pool_options,
+            **connection_options,
         )
-    return _mysql_pools[key]
+        _mysql_pools[key] = (fingerprint, pool)
+        return pool
 
 
 def _is_read_only(sql: str) -> bool:
@@ -67,8 +106,9 @@ def execute_mysql_tool(
 ) -> str:
     cfg: MySQLConfig = mcp_config.protocol_config
     conn = None
+    cursor = None
     try:
-        pool = _get_mysql_pool(cfg)
+        pool = _get_mysql_pool(mcp_config)
         conn = pool.get_connection()
         cursor = conn.cursor()
         sql = tool.sql
@@ -108,8 +148,22 @@ def execute_mysql_tool(
         logger.error("MySQL 执行失败: %s", e, exc_info=True)
         return f"MySQL 执行失败: {e}"
     finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                logger.warning("关闭 MySQL cursor 失败", exc_info=True)
         if conn is not None:
-            conn.close()
+            try:
+                if getattr(conn, "in_transaction", False):
+                    conn.rollback()
+            except Exception:
+                logger.warning("回滚 MySQL 残留事务失败", exc_info=True)
+            finally:
+                try:
+                    conn.close()
+                except Exception:
+                    logger.warning("归还 MySQL 连接失败", exc_info=True)
 
 
 # ── HTTP 适配器 ───────────────────────────────────────────

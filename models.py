@@ -9,6 +9,13 @@ from pathlib import Path
 
 _INTERNAL_METADATA_KEY = "_mcp_proxy_meta"
 
+MYSQL_ADVANCED_DEFAULTS = {
+    "autocommit": True,
+    "connection_timeout": 5,
+    "pool_size": 3,
+    "pool_reset_session": True,
+}
+
 
 class ProtocolType(str, Enum):
     MYSQL = "mysql"
@@ -23,18 +30,29 @@ class MySQLConfig:
     user: str
     password: str
     database: str
+    advanced_options: Dict[str, Any] = field(
+        default_factory=lambda: dict(MYSQL_ADVANCED_DEFAULTS)
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "MySQLConfig":
+        raw_options = data.get("advanced_options", {})
+        if raw_options is None:
+            raw_options = {}
+        if not isinstance(raw_options, dict):
+            raise ValueError("MySQL advanced_options 必须是 JSON 对象")
+        advanced_options = dict(MYSQL_ADVANCED_DEFAULTS)
+        advanced_options.update(raw_options)
         return cls(
             host=data.get("host", "localhost"),
             port=int(data.get("port", 3306)),
             user=data.get("user", "root"),
             password=data.get("password", ""),
             database=data.get("database", ""),
+            advanced_options=advanced_options,
         )
 
 

@@ -41,6 +41,20 @@
       z-index: 10;
     }
     h1 { font-size: 1.15rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+    .brand { display: flex; align-items: center; gap: 0.55rem; }
+    .version-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0.1rem 0.48rem;
+      border: 1px solid #bfdbfe;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1;
+    }
     .userline { font-size: 0.85rem; color: var(--muted); display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     main { padding: 1.25rem 1.5rem; max-width: 1200px; margin: 0 auto; }
     /* stat cards */
@@ -186,6 +200,27 @@
       cursor: pointer;
     }
     textarea { min-height: 72px; resize: vertical; }
+    .hint { margin-top: 0.3rem; color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
+    .advanced-settings {
+      margin-top: 0.35rem;
+    }
+    .advanced-settings summary {
+      width: fit-content;
+      padding: 0.2rem 0;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 400;
+      user-select: none;
+    }
+    .advanced-settings summary:hover { color: var(--accent); }
+    .advanced-settings-body {
+      margin-top: 0.35rem;
+      padding: 0.1rem 0.75rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
     /* password toggle */
     .pw-wrap { position: relative; }
@@ -461,7 +496,10 @@
 </head>
 <body>
   <header>
-    <h1>MCP Proxy 管理</h1>
+    <div class="brand">
+      <h1>MCP Proxy 管理</h1>
+      <span class="version-badge" id="appVersion">v-</span>
+    </div>
     <div class="userline">
       <span id="loginUser"></span>
       <button type="button" class="ghost" id="btnLogout">退出登录</button>
@@ -627,6 +665,14 @@
           <div><label>password</label><div class="pw-wrap"><input id="m_password" type="password" /><button type="button" class="pw-toggle" onclick="togglePw(this)">显示</button></div></div>
         </div>
         <div><label>database</label><input id="m_database" /></div>
+        <details class="advanced-settings" id="m_advanced_details">
+          <summary>高级连接设置</summary>
+          <div class="advanced-settings-body">
+            <label for="m_advanced_options">MySQL Connector 连接参数</label>
+            <textarea id="m_advanced_options" rows="8" spellcheck="false" placeholder='{"autocommit":true,"connection_timeout":5}'></textarea>
+            <div class="hint">支持 MySQL Connector 的其他连接参数；host、port、user、password、database、pool_name 请使用上方基础字段配置。</div>
+          </div>
+        </details>
       </div>
 
       <div class="section" id="box_http">
@@ -683,6 +729,12 @@
 
   <script>
     const $ = (s) => document.querySelector(s);
+    const DEFAULT_MYSQL_ADVANCED_OPTIONS = {
+      autocommit: true,
+      connection_timeout: 5,
+      pool_size: 3,
+      pool_reset_session: true,
+    };
     function togglePw(btn) {
       const input = btn.parentElement.querySelector("input");
       if (input.type === "password") { input.type = "text"; btn.textContent = "隐藏"; }
@@ -716,6 +768,8 @@
 
     async function loadStatus() {
       const s = await api("/api/status");
+      const version = String(s.version || "unknown").replace(/^v/i, "");
+      $("#appVersion").textContent = version === "unknown" ? "版本未知" : `v${version}`;
       $("#sTotal").textContent = s.total_configs;
       $("#sEnabled").textContent = s.enabled_configs;
       $("#sTools").textContent = s.total_tools;
@@ -1008,6 +1062,12 @@
       $("#m_user").value = pc.user ?? "root";
       $("#m_password").value = pc.password ?? "";
       $("#m_database").value = pc.database ?? "";
+      $("#m_advanced_details").open = false;
+      $("#m_advanced_options").value = JSON.stringify(
+        pc.advanced_options ?? DEFAULT_MYSQL_ADVANCED_OPTIONS,
+        null,
+        2,
+      );
 
       $("#h_base_url").value = pc.base_url ?? "";
       $("#h_timeout").value = pc.timeout ?? 30;
@@ -1032,12 +1092,27 @@
       const protocol = $("#f_protocol").value;
       let protocol_config;
       if (protocol === "mysql") {
+        let advancedOptions;
+        const rawAdvancedOptions = $("#m_advanced_options").value.trim();
+        try {
+          advancedOptions = rawAdvancedOptions ? JSON.parse(rawAdvancedOptions) : {};
+          if (
+            typeof advancedOptions !== "object"
+            || advancedOptions === null
+            || Array.isArray(advancedOptions)
+          ) {
+            throw new Error();
+          }
+        } catch {
+          throw new Error("MySQL 高级连接设置必须是 JSON 对象");
+        }
         protocol_config = {
           host: $("#m_host").value.trim(),
           port: parseInt($("#m_port").value, 10) || 3306,
           user: $("#m_user").value.trim(),
           password: $("#m_password").value,
           database: $("#m_database").value.trim(),
+          advanced_options: advancedOptions,
         };
       } else if (protocol === "http") {
         let headers = {};

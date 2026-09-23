@@ -7,6 +7,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, redirect, request, send_from_directory, session, url_for
 
+from adapters import build_mysql_connection_settings
 from models import (
     ConfigStorage,
     MCPConfig,
@@ -16,8 +17,12 @@ from models import (
     FilesystemConfig,
     ToolConfig,
 )
+from app_version import APP_VERSION
 
 _LOGIN_META_KEYS = frozenset({"secret_key", "users", "_meta", "_comment"})
+_MYSQL_MANAGED_OPTIONS = frozenset({
+    "host", "port", "user", "password", "database", "pool_name",
+})
 
 
 def _web_dir() -> Path:
@@ -252,6 +257,7 @@ def create_app(storage: ConfigStorage, proxy_manager=None, call_logger=None) -> 
         tool_count = sum(len(c.tools) for c in configs)
         registered = proxy_manager.get_registered_tools() if proxy_manager else []
         return jsonify({
+            "version": APP_VERSION,
             "total_configs": len(configs),
             "enabled_configs": len(enabled),
             "total_tools": tool_count,
@@ -322,6 +328,30 @@ def _validate_config(cfg: MCPConfig) -> str | None:
         mc: MySQLConfig = cfg.protocol_config  # type: ignore[assignment]
         if not mc.host or not mc.database:
             return "MySQL 需要 host 与 database"
+        options = mc.advanced_options
+        if not isinstance(options, dict):
+            return "MySQL advanced_options 必须是 JSON 对象"
+        conflicts = sorted(_MYSQL_MANAGED_OPTIONS.intersection(options))
+        if conflicts:
+            return "MySQL 高级连接设置不能包含基础字段: " + ", ".join(conflicts)
+        if not isinstance(options.get("autocommit"), bool):
+            return "MySQL 高级连接设置 autocommit 必须是布尔值"
+        if not isinstance(options.get("pool_reset_session"), bool):
+            return "MySQL 高级连接设置 pool_reset_session 必须是布尔值"
+        pool_size = options.get("pool_size")
+        if (
+            isinstance(pool_size, bool)
+            or not isinstance(pool_size, int)
+            or not 1 <= pool_size <= 32
+        ):
+            return "MySQL 高级连接设置 pool_size 必须是 1 到 32 的整数"
+        connection_timeout = options.get("connection_timeout")
+        if (
+            isinstance(connection_timeout, bool)
+            or not isinstance(connection_timeout, int)
+            or connection_timeout < 0
+        ):
+            return "MySQL 高级连接设置 connection_timeout 必须是非负整数"
     elif cfg.protocol == ProtocolType.HTTP:
         if cfg.protocol_config is None or not cfg.protocol_config.base_url:
             return "HTTP 需要 protocol_config.base_url"
@@ -377,20 +407,33 @@ def _test_mysql(cfg: MCPConfig) -> tuple:
     mc = cfg.protocol_config
     if not mc:
         return jsonify({"ok": False, "message": "MySQL 连接失败: 未配置 protocol_config"})
+    conn = None
+    cursor = None
     try:
-        conn = mysql.connector.connect(
-            host=mc.host, port=mc.port, user=mc.user,
-            password=mc.password, database=mc.database,
-            connection_timeout=5,
-        )
+        connection_options, _ = build_mysql_connection_settings(mc)
+        conn = mysql.connector.connect(**connection_options)
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         cursor.fetchone()
-        cursor.close()
-        conn.close()
         return jsonify({"ok": True, "message": f"MySQL 连接成功: {mc.database}@{mc.host}:{mc.port}"})
     except Exception as e:
         return jsonify({"ok": False, "message": f"MySQL 连接失败: {e}"})
+    finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                if getattr(conn, "in_transaction", False):
+                    conn.rollback()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _test_http(cfg: MCPConfig) -> tuple:

@@ -51,6 +51,7 @@ fi
 # 重命名 dist 目录
 echo "重命名 dist -> ${DIST_NAME}"
 mv dist "$DIST_NAME"
+printf '%s\n' "$VERSION" > "$DIST_NAME/VERSION"
 
 # 创建 zip 文件并放到目录内
 echo "创建 ${DIST_NAME}.zip"

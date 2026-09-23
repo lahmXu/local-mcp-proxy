@@ -118,6 +118,21 @@ Web 界面提供：
 - 服务状态监控（支持按配置名/工具名搜索）
 - 默认用户名/密码: admin/admin123
 
+MySQL 配置中的“高级连接设置”接受 JSON 对象，可传入 MySQL Connector
+支持的其他连接参数。默认配置如下：
+
+```json
+{
+  "autocommit": true,
+  "connection_timeout": 5,
+  "pool_size": 3,
+  "pool_reset_session": true
+}
+```
+
+`host`、`port`、`user`、`password`、`database` 和 `pool_name` 由基础配置或
+程序管理，不能在高级连接设置中重复指定。
+
 ## 命令行参数
 
 ### start.sh 参数
@@ -174,6 +189,8 @@ python main.py
 # 生成 macOS .pkg 安装包（依赖上一步的 dist 目录）
 ./scripts/build_pkg.sh [版本号]
 ```
+
+构建时传入的版本号会写入发布产物，并显示在管理页面标题旁；源码运行时读取项目根目录的 `VERSION`。
 
 ### 构建脚本说明
 
